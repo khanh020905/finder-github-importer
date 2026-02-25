@@ -1,11 +1,32 @@
+export type Gender = "male" | "female" | "other";
+
 export interface User {
   id: string;
   name: string;
   email: string;
+  age: number;
+  gender: Gender;
+  genderPreference: Gender | "all";
   major: string;
+  occupation?: string;
   interests: string[];
   bio: string;
   avatar?: string;
+  location: string;
+  distance: number; // km
+  photos: string[];
+}
+
+export interface Match {
+  id: string;
+  userId1: string;
+  userId2: string;
+  timestamp: string;
+}
+
+export interface Like {
+  fromUserId: string;
+  toUserId: string;
 }
 
 export interface Event {
@@ -37,6 +58,7 @@ export interface Message {
   receiverId: string;
   content: string;
   timestamp: string;
+  type?: "text" | "emoji" | "image";
 }
 
 export const mockUsers: User[] = [
@@ -44,50 +66,102 @@ export const mockUsers: User[] = [
     id: "1",
     name: "Nguyễn Minh Anh",
     email: "anhnm@fpt.edu.vn",
+    age: 19,
+    gender: "female",
+    genderPreference: "male",
     major: "Công nghệ thông tin",
+    occupation: "Sinh viên",
     interests: ["K-pop", "Lập trình", "Du lịch", "Bóng đá"],
     bio: "Sinh viên năm nhất CNTT, thích code và nghe nhạc Hàn 🎵",
+    location: "TP. Hồ Chí Minh",
+    distance: 0,
+    photos: [],
   },
   {
     id: "2",
     name: "Trần Hữu Phúc",
     email: "phucth@fpt.edu.vn",
+    age: 20,
+    gender: "male",
+    genderPreference: "female",
     major: "Công nghệ thông tin",
+    occupation: "Sinh viên",
     interests: ["Bóng đá", "Gaming", "Lập trình", "Phim ảnh"],
-    bio: "Fan MU, thích chơi game và học code cùng nhau!",
+    bio: "Fan MU, thích chơi game và học code cùng nhau! ⚽",
+    location: "TP. Hồ Chí Minh",
+    distance: 2,
+    photos: [],
   },
   {
     id: "3",
     name: "Lê Thị Hương",
     email: "huonglt@fpt.edu.vn",
+    age: 18,
+    gender: "female",
+    genderPreference: "male",
     major: "Quản trị kinh doanh",
+    occupation: "Sinh viên",
     interests: ["K-pop", "Du lịch", "Nấu ăn", "Yoga"],
     bio: "Yêu thích du lịch và khám phá ẩm thực 🍜",
+    location: "TP. Hồ Chí Minh",
+    distance: 5,
+    photos: [],
   },
   {
     id: "4",
     name: "Phạm Đức Huy",
     email: "huypd@fpt.edu.vn",
+    age: 21,
+    gender: "male",
+    genderPreference: "all",
     major: "Thiết kế đồ họa",
+    occupation: "Freelance Designer",
     interests: ["Vẽ", "Phim ảnh", "Nhiếp ảnh", "Du lịch"],
     bio: "Creative designer, thích chụp ảnh phong cảnh 📸",
+    location: "Hà Nội",
+    distance: 8,
+    photos: [],
   },
   {
     id: "5",
     name: "Võ Thanh Tâm",
     email: "tamvt@fpt.edu.vn",
+    age: 20,
+    gender: "male",
+    genderPreference: "female",
     major: "Công nghệ thông tin",
+    occupation: "Sinh viên",
     interests: ["Gaming", "Lập trình", "Âm nhạc", "Gym"],
     bio: "Full-stack dev wannabe, gym rat 💪",
+    location: "TP. Hồ Chí Minh",
+    distance: 3,
+    photos: [],
   },
   {
     id: "6",
     name: "Đặng Ngọc Mai",
     email: "maidn@fpt.edu.vn",
+    age: 19,
+    gender: "female",
+    genderPreference: "male",
     major: "Ngôn ngữ Anh",
+    occupation: "Sinh viên",
     interests: ["Đọc sách", "K-pop", "Yoga", "Tình nguyện"],
     bio: "Book lover, tình nguyện viên năng động 📚",
+    location: "Đà Nẵng",
+    distance: 12,
+    photos: [],
   },
+];
+
+export const mockMatches: Match[] = [
+  { id: "match1", userId1: "1", userId2: "2", timestamp: "2026-03-01T10:00:00" },
+  { id: "match2", userId1: "1", userId2: "3", timestamp: "2026-03-02T14:00:00" },
+];
+
+export const mockLikes: Like[] = [
+  { fromUserId: "4", toUserId: "1" },
+  { fromUserId: "5", toUserId: "1" },
 ];
 
 export const mockEvents: Event[] = [
@@ -124,17 +198,6 @@ export const mockEvents: Event[] = [
     participants: 35,
     creatorId: "4",
   },
-  {
-    id: "e4",
-    title: "Movie Night: Anime Marathon",
-    description: "Cùng xem anime và giao lưu. Có bắp rang và nước ngọt!",
-    date: "2026-03-15",
-    time: "19:00",
-    location: "Khu sinh hoạt chung",
-    maxParticipants: 25,
-    participants: 12,
-    creatorId: "5",
-  },
 ];
 
 export const mockGroups: StudyGroup[] = [
@@ -156,26 +219,6 @@ export const mockGroups: StudyGroup[] = [
     schedule: "T4 - 14:00",
     location: "Phòng học nhóm B3",
     members: 4,
-    maxMembers: 6,
-  },
-  {
-    id: "g3",
-    name: "JPD113 - Luyện hội thoại",
-    subject: "Japanese Elementary",
-    major: "Ngôn ngữ Nhật",
-    schedule: "T2, T6 - 10:00",
-    location: "Online - Google Meet",
-    members: 5,
-    maxMembers: 5,
-  },
-  {
-    id: "g4",
-    name: "CSI104 - Toán rời rạc",
-    subject: "Discrete Mathematics",
-    major: "Công nghệ thông tin",
-    schedule: "T7 - 09:00",
-    location: "Thư viện - Tầng 3",
-    members: 3,
     maxMembers: 6,
   },
 ];

@@ -1,13 +1,12 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, Users, BookOpen, CalendarDays, MessageCircle, User } from "lucide-react";
+import { Flame, Heart, CalendarDays, MessageCircle, User } from "lucide-react";
 
 const navItems = [
-  { to: "/", icon: Home, label: "Trang chủ" },
-  { to: "/find-friends", icon: Users, label: "Tìm bạn" },
-  { to: "/study-groups", icon: BookOpen, label: "Nhóm học" },
+  { to: "/", icon: Flame, label: "Khám phá" },
+  { to: "/matches", icon: Heart, label: "Matches" },
   { to: "/events", icon: CalendarDays, label: "Sự kiện" },
-  { to: "/messages", icon: MessageCircle, label: "Tin nhắn" },
+  { to: "/messages", icon: MessageCircle, label: "Chat" },
 ];
 
 interface AppLayoutProps {
@@ -22,20 +21,21 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       {/* Top header */}
       <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-            <Users className="w-4 h-4 text-primary-foreground" />
+          <div className="w-8 h-8 rounded-lg gradient-warm flex items-center justify-center">
+            <Flame className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="font-bold text-lg">Finder</span>
         </div>
-        <Link to="/profile" className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+        <Link
+          to="/profile"
+          className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold"
+        >
           A
         </Link>
       </header>
 
       {/* Main content */}
-      <main className="container max-w-3xl py-4 pb-20 md:pb-6">
-        {children}
-      </main>
+      <main className="container max-w-3xl py-4 pb-20 md:pb-6">{children}</main>
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/90 backdrop-blur-lg border-t md:hidden">
@@ -67,7 +67,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
               key={item.to}
               to={item.to}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                active
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted"
               }`}
             >
               <item.icon className="w-4 h-4" />
@@ -79,7 +81,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           <Link
             to="/profile"
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              location.pathname === "/profile" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+              location.pathname === "/profile"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted"
             }`}
           >
             <User className="w-4 h-4" />
