@@ -1,3 +1,12 @@
-// This file is kept for compatibility but Dashboard is the main page
-import Dashboard from "./Dashboard";
-export default Dashboard;
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+const Index = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate("/");
+  }, [navigate]);
+  return null;
+};
+
+export default Index;

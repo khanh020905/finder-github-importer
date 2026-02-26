@@ -3,18 +3,25 @@ export type Gender = "male" | "female" | "other";
 export interface User {
   id: string;
   name: string;
-  email: string;
   age: number;
   gender: Gender;
   genderPreference: Gender | "all";
-  major: string;
-  occupation?: string;
+  occupation: string;
   interests: string[];
   bio: string;
-  avatar?: string;
+  avatar: string;
   location: string;
-  distance: number; // km
+  city: string;
+  lat: number;
+  lng: number;
+  distance: number;
   photos: string[];
+  isOnline: boolean;
+  isVerified: boolean;
+  lastActive: string;
+  anthem?: string;
+  instagram?: string;
+  badges?: string[];
 }
 
 export interface Match {
@@ -27,29 +34,7 @@ export interface Match {
 export interface Like {
   fromUserId: string;
   toUserId: string;
-}
-
-export interface Event {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  location: string;
-  maxParticipants: number;
-  participants: number;
-  creatorId: string;
-}
-
-export interface StudyGroup {
-  id: string;
-  name: string;
-  subject: string;
-  major: string;
-  schedule: string;
-  location: string;
-  members: number;
-  maxMembers: number;
+  isSuperLike?: boolean;
 }
 
 export interface Message {
@@ -58,175 +43,246 @@ export interface Message {
   receiverId: string;
   content: string;
   timestamp: string;
-  type?: "text" | "emoji" | "image";
+  type?: "text" | "emoji" | "image" | "gif" | "voice" | "icebreaker" | "date-idea" | "system";
+  seen?: boolean;
+  isWarning?: boolean;
 }
+
+export interface DateIdea {
+  id: string;
+  name: string;
+  category: string;
+  emoji: string;
+  address: string;
+  rating: number;
+  priceLevel: number;
+  distance: number;
+  lat: number;
+  lng: number;
+  image: string;
+}
+
+export interface IceBreaker {
+  id: string;
+  question: string;
+  category: string;
+  emoji: string;
+}
+
+// Tags
+export const interestTags = [
+  "Cà phê ☕", "Du lịch ✈️", "Gym 💪", "K-pop 🎵", "Gaming 🎮", "Phim ảnh 🎬",
+  "Nấu ăn 🍳", "Yoga 🧘", "Nhiếp ảnh 📸", "Đọc sách 📚", "Bóng đá ⚽", "Nhảy múa 💃",
+  "Anime 🎌", "TikTok 📱", "Sáng tạo nội dung 🎨", "Thú cưng 🐶", "Cầu lông 🏸",
+  "Trà sữa 🧋", "Khởi nghiệp 🚀", "Viết lách ✍️", "Podcast 🎧", "Thiết kế 🎨",
+  "Bóng rổ 🏀", "Chạy bộ 🏃", "Âm nhạc live 🎸", "Wine & Dine 🍷", "Board game 🎲",
+];
+
+// Avatar helper
+const av = (seed: string, style: "adventurer" | "micah" | "lorelei" = "lorelei") =>
+  `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=ffd5dc,ffdfbf,c0aede,b6e3f4,d1d4f9`;
+
+// Photo helper
+const ph = (id: number, w = 400, h = 560) =>
+  `https://picsum.photos/seed/tinder${id}/${w}/${h}`;
 
 export const mockUsers: User[] = [
   {
-    id: "1",
-    name: "Nguyễn Minh Anh",
-    email: "anhnm@fpt.edu.vn",
-    age: 19,
+    id: "me",
+    name: "Minh Anh",
+    age: 22,
     gender: "female",
     genderPreference: "male",
-    major: "Công nghệ thông tin",
-    occupation: "Sinh viên",
-    interests: ["K-pop", "Lập trình", "Du lịch", "Bóng đá"],
-    bio: "Sinh viên năm nhất CNTT, thích code và nghe nhạc Hàn 🎵",
-    location: "TP. Hồ Chí Minh",
+    occupation: "UX Designer",
+    interests: ["Cà phê ☕", "Du lịch ✈️", "K-pop 🎵", "Nhiếp ảnh 📸", "Thiết kế 🎨"],
+    bio: "Design lover ✨ Cà phê sữa đá enthusiast ☕ Looking for someone to explore Saigon with 🏍️",
+    avatar: av("minh-anh"),
+    location: "Quận 1, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.7769,
+    lng: 106.7009,
     distance: 0,
-    photos: [],
+    photos: [ph(100), ph(101), ph(102), ph(103), ph(104)],
+    isOnline: true,
+    isVerified: true,
+    lastActive: "Now",
+    anthem: "APT. – ROSÉ & Bruno Mars",
+    instagram: "@minhanh.design",
+    badges: ["Photo Verified", "Top Picks"],
   },
   {
     id: "2",
-    name: "Trần Hữu Phúc",
-    email: "phucth@fpt.edu.vn",
-    age: 20,
+    name: "Đức Huy",
+    age: 24,
     gender: "male",
     genderPreference: "female",
-    major: "Công nghệ thông tin",
-    occupation: "Sinh viên",
-    interests: ["Bóng đá", "Gaming", "Lập trình", "Phim ảnh"],
-    bio: "Fan MU, thích chơi game và học code cùng nhau! ⚽",
-    location: "TP. Hồ Chí Minh",
-    distance: 2,
-    photos: [],
+    occupation: "Software Engineer tại FPT",
+    interests: ["Cà phê ☕", "Gaming 🎮", "Gym 💪", "Du lịch ✈️", "Âm nhạc live 🎸"],
+    bio: "Code by day, gym by night 💪 Tìm người cùng chill và khám phá quán mới 🍜 182cm",
+    avatar: av("duc-huy", "adventurer"),
+    location: "Quận 7, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.7340,
+    lng: 106.7218,
+    distance: 3,
+    photos: [ph(200), ph(201), ph(202), ph(203)],
+    isOnline: true,
+    isVerified: true,
+    lastActive: "2 min ago",
+    anthem: "Blinding Lights – The Weeknd",
+    instagram: "@duchuy.dev",
+    badges: ["Photo Verified"],
   },
   {
     id: "3",
-    name: "Lê Thị Hương",
-    email: "huonglt@fpt.edu.vn",
-    age: 18,
+    name: "Thảo Vy",
+    age: 21,
     gender: "female",
     genderPreference: "male",
-    major: "Quản trị kinh doanh",
-    occupation: "Sinh viên",
-    interests: ["K-pop", "Du lịch", "Nấu ăn", "Yoga"],
-    bio: "Yêu thích du lịch và khám phá ẩm thực 🍜",
-    location: "TP. Hồ Chí Minh",
+    occupation: "Marketing tại Shopee",
+    interests: ["K-pop 🎵", "Du lịch ✈️", "Nấu ăn 🍳", "Trà sữa 🧋", "Nhảy múa 💃"],
+    bio: "BLINK 🖤💖 Dance cover mỗi cuối tuần. Tìm người ăn bún bò cùng 🍜",
+    avatar: av("thao-vy"),
+    location: "Bình Thạnh, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.8031,
+    lng: 106.7066,
     distance: 5,
-    photos: [],
+    photos: [ph(300), ph(301), ph(302), ph(303), ph(304), ph(305)],
+    isOnline: false,
+    isVerified: true,
+    lastActive: "1 hour ago",
+    anthem: "How You Like That – BLACKPINK",
+    badges: ["Photo Verified", "Top Picks"],
   },
   {
     id: "4",
-    name: "Phạm Đức Huy",
-    email: "huypd@fpt.edu.vn",
-    age: 21,
+    name: "Khoa Nguyễn",
+    age: 25,
     gender: "male",
-    genderPreference: "all",
-    major: "Thiết kế đồ họa",
-    occupation: "Freelance Designer",
-    interests: ["Vẽ", "Phim ảnh", "Nhiếp ảnh", "Du lịch"],
-    bio: "Creative designer, thích chụp ảnh phong cảnh 📸",
-    location: "Hà Nội",
-    distance: 8,
-    photos: [],
+    genderPreference: "female",
+    occupation: "Photographer Freelance",
+    interests: ["Nhiếp ảnh 📸", "Cà phê ☕", "Du lịch ✈️", "Phim ảnh 🎬", "Wine & Dine 🍷"],
+    bio: "📸 Golden hour chaser. Sẽ chụp ảnh đẹp cho bạn. 185cm. Cat dad 🐱",
+    avatar: av("khoa-nguyen", "adventurer"),
+    location: "Quận 3, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.7835,
+    lng: 106.6880,
+    distance: 2,
+    photos: [ph(400), ph(401), ph(402)],
+    isOnline: true,
+    isVerified: true,
+    lastActive: "Active now",
+    anthem: "Golden Hour – JVKE",
+    instagram: "@khoa.shoots",
+    badges: ["Photo Verified"],
   },
   {
     id: "5",
-    name: "Võ Thanh Tâm",
-    email: "tamvt@fpt.edu.vn",
-    age: 20,
-    gender: "male",
-    genderPreference: "female",
-    major: "Công nghệ thông tin",
-    occupation: "Sinh viên",
-    interests: ["Gaming", "Lập trình", "Âm nhạc", "Gym"],
-    bio: "Full-stack dev wannabe, gym rat 💪",
-    location: "TP. Hồ Chí Minh",
-    distance: 3,
-    photos: [],
+    name: "Hà My",
+    age: 23,
+    gender: "female",
+    genderPreference: "male",
+    occupation: "Content Creator",
+    interests: ["TikTok 📱", "Sáng tạo nội dung 🎨", "Yoga 🧘", "Đọc sách 📚", "Cà phê ☕"],
+    bio: "✨ TikTok 200K+ | Introvert giả extrovert | Thích ngồi quán cà phê cả ngày 📚",
+    avatar: av("ha-my"),
+    location: "Quận 2, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.7868,
+    lng: 106.7390,
+    distance: 4,
+    photos: [ph(500), ph(501), ph(502), ph(503)],
+    isOnline: true,
+    isVerified: true,
+    lastActive: "Active now",
+    badges: ["Photo Verified", "Top Picks"],
   },
   {
     id: "6",
-    name: "Đặng Ngọc Mai",
-    email: "maidn@fpt.edu.vn",
-    age: 19,
+    name: "Bảo Long",
+    age: 26,
+    gender: "male",
+    genderPreference: "female",
+    occupation: "Kiến trúc sư",
+    interests: ["Thiết kế 🎨", "Cà phê ☕", "Chạy bộ 🏃", "Board game 🎲", "Phim ảnh 🎬"],
+    bio: "Kiến trúc sư ban ngày, bartender bán thời gian ban đêm 🍸 Dog dad – Golden Retriever 🐕",
+    avatar: av("bao-long", "micah"),
+    location: "Phú Nhuận, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.7992,
+    lng: 106.6802,
+    distance: 6,
+    photos: [ph(600), ph(601), ph(602)],
+    isOnline: false,
+    isVerified: true,
+    lastActive: "3 hours ago",
+    anthem: "See You Again – Tyler, the Creator",
+    badges: ["Photo Verified"],
+  },
+  {
+    id: "7",
+    name: "Thanh Tâm",
+    age: 22,
     gender: "female",
     genderPreference: "male",
-    major: "Ngôn ngữ Anh",
-    occupation: "Sinh viên",
-    interests: ["Đọc sách", "K-pop", "Yoga", "Tình nguyện"],
-    bio: "Book lover, tình nguyện viên năng động 📚",
-    location: "Đà Nẵng",
-    distance: 12,
-    photos: [],
+    occupation: "Sinh viên Y khoa",
+    interests: ["Gym 💪", "Nấu ăn 🍳", "Thú cưng 🐶", "K-pop 🎵", "Anime 🎌"],
+    bio: "Future doctor 🩺 Gym addict 💪 Cook better than your mom (maybe) 👩‍🍳",
+    avatar: av("thanh-tam"),
+    location: "Gò Vấp, TP.HCM",
+    city: "TP. Hồ Chí Minh",
+    lat: 10.8381,
+    lng: 106.6628,
+    distance: 8,
+    photos: [ph(700), ph(701), ph(702), ph(703)],
+    isOnline: false,
+    isVerified: true,
+    lastActive: "Yesterday",
   },
 ];
 
 export const mockMatches: Match[] = [
-  { id: "match1", userId1: "1", userId2: "2", timestamp: "2026-03-01T10:00:00" },
-  { id: "match2", userId1: "1", userId2: "3", timestamp: "2026-03-02T14:00:00" },
+  { id: "m1", userId1: "me", userId2: "2", timestamp: "2026-02-26T08:00:00" },
+  { id: "m2", userId1: "me", userId2: "3", timestamp: "2026-02-25T14:00:00" },
+  { id: "m3", userId1: "me", userId2: "5", timestamp: "2026-02-26T10:30:00" },
 ];
 
 export const mockLikes: Like[] = [
-  { fromUserId: "4", toUserId: "1" },
-  { fromUserId: "5", toUserId: "1" },
-];
-
-export const mockEvents: Event[] = [
-  {
-    id: "e1",
-    title: "Giao lưu tân sinh viên CNTT",
-    description: "Buổi giao lưu làm quen giữa các bạn năm nhất ngành CNTT",
-    date: "2026-03-05",
-    time: "14:00",
-    location: "Phòng hội thảo A - FPT HCM",
-    maxParticipants: 50,
-    participants: 23,
-    creatorId: "1",
-  },
-  {
-    id: "e2",
-    title: "Đá bóng cuối tuần",
-    description: "Giao hữu bóng đá giữa các khoa, ai cũng có thể tham gia!",
-    date: "2026-03-08",
-    time: "16:00",
-    location: "Sân bóng FPT University",
-    maxParticipants: 30,
-    participants: 18,
-    creatorId: "2",
-  },
-  {
-    id: "e3",
-    title: "Workshop Design Thinking",
-    description: "Học cách tư duy sáng tạo qua phương pháp Design Thinking",
-    date: "2026-03-12",
-    time: "09:00",
-    location: "Phòng 301 - Tòa nhà Alpha",
-    maxParticipants: 40,
-    participants: 35,
-    creatorId: "4",
-  },
-];
-
-export const mockGroups: StudyGroup[] = [
-  {
-    id: "g1",
-    name: "PRF192 - Ôn tập cuối kỳ",
-    subject: "Programming Fundamentals",
-    major: "Công nghệ thông tin",
-    schedule: "T3, T5 - 18:00",
-    location: "Thư viện - Tầng 2",
-    members: 6,
-    maxMembers: 8,
-  },
-  {
-    id: "g2",
-    name: "MKT101 - Nhóm thảo luận",
-    subject: "Marketing Principles",
-    major: "Quản trị kinh doanh",
-    schedule: "T4 - 14:00",
-    location: "Phòng học nhóm B3",
-    members: 4,
-    maxMembers: 6,
-  },
+  { fromUserId: "4", toUserId: "me" },
+  { fromUserId: "6", toUserId: "me", isSuperLike: true },
+  { fromUserId: "7", toUserId: "me" },
 ];
 
 export const mockMessages: Message[] = [
-  { id: "m1", senderId: "2", receiverId: "1", content: "Hey, bạn có muốn học nhóm PRF192 không?", timestamp: "2026-03-01T10:00:00" },
-  { id: "m2", senderId: "1", receiverId: "2", content: "Có chứ! Khi nào bắt đầu?", timestamp: "2026-03-01T10:05:00" },
-  { id: "m3", senderId: "2", receiverId: "1", content: "T3 tuần sau nha, 6h chiều ở thư viện", timestamp: "2026-03-01T10:06:00" },
-  { id: "m4", senderId: "3", receiverId: "1", content: "Mình thấy bạn cũng thích K-pop! Bias ai vậy? 😄", timestamp: "2026-03-01T14:00:00" },
-  { id: "m5", senderId: "1", receiverId: "3", content: "Mình thích BTS nhất! Còn bạn?", timestamp: "2026-03-01T14:10:00" },
+  { id: "s0", senderId: "system", receiverId: "me", content: "Bạn và Đức Huy đã match! Hãy bắt đầu trò chuyện 🔥", timestamp: "2026-02-26T08:00:00", type: "system" },
+  { id: "m1", senderId: "2", receiverId: "me", content: "Hey Minh Anh! Profile đẹp quá 😍 Mình thấy bạn cũng thích cà phê – quán ruột bạn ở đâu?", timestamp: "2026-02-26T08:05:00", type: "text", seen: true },
+  { id: "m2", senderId: "me", receiverId: "2", content: "Hi Huy! Thanks nha 🤭 Mình hay ngồi The Workshop ở Quận 1 đó. Bạn thì sao?", timestamp: "2026-02-26T08:08:00", type: "text", seen: true },
+  { id: "m3", senderId: "2", receiverId: "me", content: "Ồ hay quá! Mình thích Là Việt ở Quận 3. Cuối tuần rảnh thử đi chung Coffee Tour không? ☕", timestamp: "2026-02-26T08:12:00", type: "text", seen: true },
+  { id: "m4", senderId: "me", receiverId: "2", content: "Sounds fun! Cuối tuần này OK nha 🎉", timestamp: "2026-02-26T08:15:00", type: "text", seen: false },
+  { id: "m5", senderId: "3", receiverId: "me", content: "Hiiii ✨ Mình cũng BLINK nè! Bạn có đi concert BLACKPINK không?", timestamp: "2026-02-25T14:05:00", type: "text", seen: true },
+  { id: "m6", senderId: "me", receiverId: "3", content: "Có chứ! Mình còn giữ lightstick 🖤💖 Bạn bias ai?", timestamp: "2026-02-25T14:12:00", type: "text", seen: true },
+  { id: "m7", senderId: "3", receiverId: "me", content: "Lisa forever! 💛 Bạn có muốn đi xem dance cover show tuần sau không?", timestamp: "2026-02-25T14:18:00", type: "text", seen: false },
+  { id: "m8", senderId: "5", receiverId: "me", content: "Hii Minh Anh! Profile aesthetic quá 📸 Bạn chụp bằng camera gì vậy?", timestamp: "2026-02-26T10:35:00", type: "text", seen: false },
+];
+
+export const mockDateIdeas: DateIdea[] = [
+  { id: "d1", name: "The Workshop Coffee", category: "Café", emoji: "☕", address: "27 Ngô Đức Kế, Q.1", rating: 4.6, priceLevel: 2, distance: 1.2, lat: 10.7745, lng: 106.7038, image: ph(901, 300, 200) },
+  { id: "d2", name: "Landmark 81 SkyView", category: "Viewpoint", emoji: "🌆", address: "Vinhomes Central Park, Bình Thạnh", rating: 4.8, priceLevel: 3, distance: 3.5, lat: 10.7955, lng: 106.7219, image: ph(902, 300, 200) },
+  { id: "d3", name: "Thảo Cầm Viên", category: "Park", emoji: "🌳", address: "2 Nguyễn Bỉnh Khiêm, Q.1", rating: 4.4, priceLevel: 1, distance: 2.0, lat: 10.7872, lng: 106.7057, image: ph(903, 300, 200) },
+  { id: "d4", name: "Shin Coffee Rooftop", category: "Café", emoji: "🌙", address: "13 Nguyễn Thiệp, Q.1", rating: 4.5, priceLevel: 2, distance: 1.0, lat: 10.7756, lng: 106.7033, image: ph(904, 300, 200) },
+  { id: "d5", name: "Pizza 4P's", category: "Restaurant", emoji: "🍕", address: "8 Thủ Khoa Huân, Q.1", rating: 4.7, priceLevel: 3, distance: 1.5, lat: 10.7745, lng: 106.7002, image: ph(905, 300, 200) },
+  { id: "d6", name: "Sài Gòn River Walk", category: "Walk", emoji: "🚶", address: "Bến Bạch Đằng, Q.1", rating: 4.3, priceLevel: 0, distance: 0.8, lat: 10.7751, lng: 106.7067, image: ph(906, 300, 200) },
+];
+
+export const mockIceBreakers: IceBreaker[] = [
+  { id: "i1", question: "Nếu mai là ngày cuối cùng ở Sài Gòn, bạn sẽ đi đâu?", category: "Fun", emoji: "🏙️" },
+  { id: "i2", question: "Quán cà phê yêu thích nhất Sài Gòn?", category: "Coffee", emoji: "☕" },
+  { id: "i3", question: "Bộ phim/series xem đi xem lại không chán?", category: "Entertainment", emoji: "🎬" },
+  { id: "i4", question: "Unpopular opinion về ẩm thực Việt Nam?", category: "Food", emoji: "🍜" },
+  { id: "i5", question: "Playlist bạn đang nghe suốt tuần này?", category: "Music", emoji: "🎵" },
+  { id: "i6", question: "Deal-breaker lớn nhất khi date?", category: "Deep", emoji: "🤔" },
+  { id: "i7", question: "Green flag lớn nhất bạn tìm kiếm?", category: "Deep", emoji: "🟩" },
+  { id: "i8", question: "Weekend lý tưởng của bạn trông như thế nào?", category: "Lifestyle", emoji: "☀️" },
 ];
