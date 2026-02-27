@@ -1,11 +1,11 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Flame, Heart, Compass, MessageCircle, User } from "lucide-react";
+import { Heart, Compass, MessageCircle, User, Sparkles } from "lucide-react";
 
 const nav = [
-  { to: "/", icon: Flame, label: "Swipe" },
+  { to: "/", icon: Heart, label: "Swipe" },
   { to: "/explore", icon: Compass, label: "Explore" },
-  { to: "/matches", icon: Heart, label: "Matches" },
+  { to: "/matches", icon: Sparkles, label: "Matches" },
   { to: "/messages", icon: MessageCircle, label: "Chat" },
 ];
 
@@ -18,10 +18,11 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       <header className="sticky top-0 z-40 glass border-b border-border/40 px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg gradient-hot flex items-center justify-center shadow-card">
-            <Flame className="w-[18px] h-[18px] text-white" strokeWidth={2.5} />
+            <Heart className="w-[18px] h-[18px] text-white fill-white" />
           </div>
-          <span className="font-black text-[17px] tracking-tight font-display">
-            tinder
+          <span className="font-black text-[17px] tracking-tight">
+            <span className="font-serif-display italic text-gradient-flame">Campus</span>
+            <span>Connect</span>
           </span>
         </div>
         <Link

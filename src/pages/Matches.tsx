@@ -1,6 +1,6 @@
 import { mockUsers, mockMatches } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Heart, Star, Clock, Verified, Flame, Sparkles } from "lucide-react";
+import { MessageCircle, Heart, Star, Clock, Verified, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const me = mockUsers[0];
@@ -23,7 +23,7 @@ const Matches = () => {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Flame className="w-6 h-6 text-primary" /> Matches
+          <Heart className="w-6 h-6 text-primary fill-primary" /> Matches
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">{matched.length} matches</p>
       </div>

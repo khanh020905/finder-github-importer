@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Splash from "./pages/Splash";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -24,6 +25,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Landing page */}
+          <Route path="/home" element={<Landing />} />
+
           {/* Auth flow */}
           <Route path="/splash" element={<Splash />} />
           <Route path="/login" element={<Login />} />

@@ -1,7 +1,7 @@
 import { mockUsers } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, MapPin, Heart, Briefcase, User, Shield, Verified, Camera, Settings, Moon, Sun, ChevronRight, LogOut, Bell, Lock, Eye, HelpCircle, Flame, Music, Instagram, Globe, ScanFace } from "lucide-react";
+import { Edit, MapPin, Heart, Briefcase, User, Shield, Verified, Camera, Settings, Moon, Sun, ChevronRight, LogOut, Bell, Lock, Eye, HelpCircle, Music, Instagram, Globe, ScanFace } from "lucide-react";
 import { useState } from "react";
 
 const me = mockUsers[0];
@@ -57,7 +57,7 @@ const Profile = () => {
           ))}
         </div>
         <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10 rounded-2xl h-12"><LogOut className="w-4 h-4" />Log Out</Button>
-        <p className="text-center text-[10px] text-muted-foreground/40 pb-4">Tinder Recharged v2026.1 · Made with 🔥</p>
+        <p className="text-center text-[10px] text-muted-foreground/40 pb-4">CampusConnect v2026.1 · Made with ❤️</p>
       </div>
     );
   }
@@ -95,7 +95,7 @@ const Profile = () => {
         <div className="flex gap-2 flex-wrap">
           {me.badges.map((b) => (
             <div key={b} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary text-xs font-semibold">
-              {b === "Top Picks" ? "⭐" : b === "Photo Verified" ? "✓" : "🔥"} {b}
+              {b === "Top Picks" ? "⭐" : b === "Photo Verified" ? "✓" : "❤️"} {b}
             </div>
           ))}
         </div>

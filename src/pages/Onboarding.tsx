@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, Camera, Plus, Check, MapPin, Heart, Sparkles, Flame, ScanFace } from "lucide-react";
+import { ArrowRight, ArrowLeft, Camera, Plus, Check, MapPin, Heart, Sparkles, ScanFace } from "lucide-react";
 import { interestTags } from "@/lib/mock-data";
 
 const steps = [
@@ -160,8 +160,8 @@ const Onboarding = () => {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-1">
-            <Flame className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold">tinder</span>
+            <Heart className="w-4 h-4 text-primary fill-primary" />
+            <span className="text-sm font-bold"><span className="font-serif-display italic">Campus</span>Connect</span>
           </div>
           <button onClick={goNext} className="text-xs text-muted-foreground font-medium hover:text-primary">Bỏ qua</button>
         </div>

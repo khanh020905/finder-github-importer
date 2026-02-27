@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Flame, ArrowRight, Phone, Mail, Lock, Eye, EyeOff, Shield, ChevronDown } from "lucide-react";
+import { Heart, ArrowRight, Phone, Mail, Lock, Eye, EyeOff, Shield, ChevronDown, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 const Login = () => {
@@ -29,7 +29,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Hero gradient */}
-      <div className="relative h-[340px] gradient-flame flex flex-col items-center justify-end overflow-hidden">
+      <div className="relative h-[340px] gradient-romantic flex flex-col items-center justify-end overflow-hidden">
         {/* Decorative rings */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
           <div className="absolute w-64 h-64 rounded-full border border-white/20" />
@@ -39,16 +39,24 @@ const Login = () => {
         <div className="absolute w-24 h-24 rounded-full bg-white/8 -top-6 -right-6 animate-float" />
         <div className="absolute w-16 h-16 rounded-full bg-white/6 top-20 left-8 animate-float" style={{ animationDelay: "1s" }} />
         <div className="absolute w-20 h-20 rounded-full bg-white/5 bottom-24 right-12 animate-float" style={{ animationDelay: "0.5s" }} />
+        
+        {/* Floating hearts */}
+        <div className="absolute top-16 left-[20%] opacity-20 animate-float">
+          <Heart className="w-6 h-6 text-white fill-white" />
+        </div>
+        <div className="absolute top-32 right-[25%] opacity-15 animate-float-slow">
+          <Heart className="w-5 h-5 text-white fill-white" />
+        </div>
 
         {/* Logo */}
         <div className="relative z-10 text-center pb-14 animate-slide-up">
           <div className="w-20 h-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Flame className="w-11 h-11 text-white" strokeWidth={2.5} />
+            <Heart className="w-11 h-11 text-white fill-white" />
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tight font-display" style={{ letterSpacing: "-0.02em" }}>
-            tinder
+          <h1 className="text-4xl font-black text-white tracking-tight" style={{ letterSpacing: "-0.02em" }}>
+            <span className="font-serif-display italic">Campus</span>Connect
           </h1>
-          <p className="text-white/50 text-[10px] mt-1 uppercase tracking-[0.25em] font-semibold">Recharged 2026</p>
+          <p className="text-white/50 text-[10px] mt-1 uppercase tracking-[0.25em] font-semibold">Dating 2026</p>
         </div>
       </div>
 
@@ -114,7 +122,7 @@ const Login = () => {
           {mode === "phone" && (
             <form onSubmit={handleSubmit} className="space-y-4 animate-slide-up">
               <button type="button" onClick={() => setMode("social")} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-2">
-                <ChevronDown className="w-4 h-4 rotate-90" /> Quay lại
+                <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
               <h2 className="text-xl font-bold">Đăng nhập bằng SĐT</h2>
               <div className="space-y-2">
@@ -150,7 +158,7 @@ const Login = () => {
           {mode === "email" && (
             <form onSubmit={handleSubmit} className="space-y-4 animate-slide-up">
               <button type="button" onClick={() => setMode("social")} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-2">
-                <ChevronDown className="w-4 h-4 rotate-90" /> Quay lại
+                <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
               <h2 className="text-xl font-bold">Đăng nhập bằng Email</h2>
               <div className="relative">
@@ -183,7 +191,7 @@ const Login = () => {
 
           {/* Terms */}
           <p className="text-[10px] text-muted-foreground/60 text-center mt-4 leading-relaxed">
-            Bằng cách đăng nhập, bạn đồng ý với <span className="underline">Điều khoản</span> và <span className="underline">Chính sách bảo mật</span> của Tinder.
+            Bằng cách đăng nhập, bạn đồng ý với <span className="underline">Điều khoản</span> và <span className="underline">Chính sách bảo mật</span> của CampusConnect.
           </p>
         </div>
       </div>
