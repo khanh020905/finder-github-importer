@@ -1,154 +1,538 @@
-import { mockUsers } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, MapPin, Heart, Briefcase, User, Shield, Verified, Camera, Settings, Moon, Sun, ChevronRight, LogOut, Bell, Lock, Eye, HelpCircle, Music, Instagram, Globe, ScanFace } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import {
+  Edit,
+  MapPin,
+  Heart,
+  Briefcase,
+  User,
+  Shield,
+  Verified,
+  Camera,
+  Settings,
+  Moon,
+  Sun,
+  ChevronRight,
+  LogOut,
+  Bell,
+  Lock,
+  Eye,
+  HelpCircle,
+  ScanFace,
+  Save,
+  X,
+  CreditCard,
+  Target,
+  Trophy,
+  Zap,
+} from "lucide-react";
+import { useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
-const me = mockUsers[0];
+const interestTags = [
+  "Âm nhạc",
+  "Du lịch",
+  "Thể thao",
+  "Đọc sách",
+  "Nấu ăn",
+  "Chụp ảnh",
+  "Phim ảnh",
+  "Game",
+  "Khiêu vũ",
+  "Yoga",
+  "Cắm trại",
+  "Cafe",
+  "Mèo",
+  "Chó",
+  "Nghệ thuật",
+  "Kinh doanh",
+  "Công nghệ",
+  "Thời trang",
+  "Hiking",
+  "Tình nguyện",
+];
 
 const Profile = () => {
-  const [isDark, setIsDark] = useState(false);
-  const [tab, setTab] = useState<"profile" | "settings">("profile");
-  const [pi, setPi] = useState(0);
+  const { user, profile, signOut, refreshProfile } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [dark, setDark] = useState(
+    document.documentElement.classList.contains("dark"),
+  );
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const toggleDark = () => { setIsDark(!isDark); document.documentElement.classList.toggle("dark"); };
+  // Edit form state
+  const [editName, setEditName] = useState(profile?.name || "");
+  const [editAge, setEditAge] = useState(profile?.age?.toString() || "");
+  const [editBio, setEditBio] = useState(profile?.bio || "");
+  const [editGender, setEditGender] = useState(profile?.gender || "");
+  const [editGenderPref, setEditGenderPref] = useState(
+    profile?.gender_preference || "",
+  );
+  const [editInterests, setEditInterests] = useState<string[]>(
+    profile?.interests || [],
+  );
+  const [editCity, setEditCity] = useState(profile?.city || "");
 
-  // ── Settings ──
-  if (tab === "settings") {
+  const completionPercent = useMemo(() => {
+    if (!profile) return 0;
+    let points = 0;
+    if (profile.name) points += 20;
+    if (profile.avatar_url) points += 20;
+    if (profile.bio) points += 20;
+    if (profile.interests?.length > 0) points += 20;
+    if (profile.age) points += 20;
+    return points;
+  }, [profile]);
+
+  const toggleDark = () => {
+    document.documentElement.classList.toggle("dark");
+    setDark(!dark);
+  };
+
+  const startEditing = () => {
+    setEditName(profile?.name || "");
+    setEditAge(profile?.age?.toString() || "");
+    setEditBio(profile?.bio || "");
+    setEditGender(profile?.gender || "");
+    setEditGenderPref(profile?.gender_preference || "");
+    setEditInterests(profile?.interests || []);
+    setEditCity(profile?.city || "");
+    setEditing(true);
+  };
+
+  const toggleInterest = (t: string) => {
+    setEditInterests((p) =>
+      p.includes(t) ? p.filter((x) => x !== t) : p.length < 8 ? [...p, t] : p,
+    );
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        name: editName.trim(),
+        age: editAge ? parseInt(editAge) : null,
+        bio: editBio.trim(),
+        gender: editGender || null,
+        gender_preference: editGenderPref || null,
+        interests: editInterests,
+        city: editCity.trim(),
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      toast({
+        title: "Lỗi",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Đã lưu! ✅" });
+      await refreshProfile();
+      setEditing(false);
+    }
+    setSaving(false);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login");
+  };
+
+  const avatarUrl =
+    profile?.avatar_url ||
+    `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.id}&backgroundColor=ffd5dc`;
+
+  if (!profile) {
     return (
-      <div className="space-y-4 animate-fade-in max-w-lg mx-auto">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setTab("profile")} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80"><ChevronRight className="w-4 h-4 rotate-180" /></button>
-          <h1 className="text-xl font-bold">Settings</h1>
+      <div className="flex items-center justify-center h-[70vh]">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
+          <div className="absolute inset-0 rounded-full border-4 border-t-primary animate-spin" />
         </div>
-        {/* Account */}
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-          <h3 className="text-[10px] font-bold text-muted-foreground px-4 pt-4 pb-2 uppercase tracking-wider">Account</h3>
-          {[{icon:User,label:"Edit Profile",c:"text-primary"},{icon:Lock,label:"Change Password",c:"text-primary"},{icon:Bell,label:"Notifications",c:"text-primary"},{icon:Eye,label:"Privacy",c:"text-primary"},{icon:ScanFace,label:"Photo Verification",c:"text-[#00D4FF]"},{icon:Globe,label:"Passport™ Mode",c:"text-[#667eea]"}].map(({icon:I,label,c}) => (
-            <button key={label} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors text-left"><I className={`w-4 h-4 ${c}`} /><span className="text-[13px] flex-1">{label}</span><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>
-          ))}
-        </div>
-        {/* Discovery */}
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-          <h3 className="text-[10px] font-bold text-muted-foreground px-4 pt-4 pb-2 uppercase tracking-wider">Discovery</h3>
-          <div className="px-4 py-3 space-y-4">
-            <div className="flex justify-between"><span className="text-[13px]">Looking For</span><span className="text-[13px] text-primary font-semibold">Women</span></div>
-            <div className="flex justify-between"><span className="text-[13px]">Age Range</span><span className="text-[13px] text-primary font-semibold">18–30</span></div>
-            <div className="flex justify-between"><span className="text-[13px]">Maximum Distance</span><span className="text-[13px] text-primary font-semibold">25 km</span></div>
-            <div className="flex justify-between"><span className="text-[13px]">Global Mode</span><span className="text-[13px] font-semibold text-muted-foreground">Off</span></div>
-          </div>
-        </div>
-        {/* Appearance */}
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-          <h3 className="text-[10px] font-bold text-muted-foreground px-4 pt-4 pb-2 uppercase tracking-wider">Appearance</h3>
-          <button onClick={toggleDark} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 text-left">
-            {isDark ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-primary" />}
-            <span className="text-[13px] flex-1">{isDark ? "Light Mode" : "Dark Mode"}</span>
-            <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${isDark ? "gradient-hot" : "bg-muted"}`}>
-              <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${isDark ? "translate-x-5" : "translate-x-0"}`} />
-            </div>
-          </button>
-        </div>
-        {/* Support */}
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-          <h3 className="text-[10px] font-bold text-muted-foreground px-4 pt-4 pb-2 uppercase tracking-wider">Help & Support</h3>
-          {[{icon:HelpCircle,label:"Help Center",c:"text-primary"},{icon:Shield,label:"Safety Tips",c:"text-green-500"},{icon:Shield,label:"Community Guidelines",c:"text-primary"}].map(({icon:I,label,c}) => (
-            <button key={label} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 text-left"><I className={`w-4 h-4 ${c}`} /><span className="text-[13px] flex-1">{label}</span><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>
-          ))}
-        </div>
-        <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10 rounded-2xl h-12"><LogOut className="w-4 h-4" />Log Out</Button>
-        <p className="text-center text-[10px] text-muted-foreground/40 pb-4">CampusConnect v2026.1 · Made with ❤️</p>
       </div>
     );
   }
 
-  // ── Profile ──
   return (
-    <div className="space-y-4 animate-fade-in max-w-lg mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Profile</h1>
-        <button onClick={() => setTab("settings")} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80"><Settings className="w-4 h-4" /></button>
-      </div>
-
-      {/* Photo carousel */}
-      <div className="relative rounded-3xl overflow-hidden shadow-elevated h-[380px]">
-        <img src={me.photos[pi] || me.avatar} alt="" className="w-full h-full object-cover" />
-        {me.photos.length > 1 && (
-          <div className="absolute top-3 left-3 right-3 flex gap-1">
-            {me.photos.map((_, i) => <button key={i} onClick={() => setPi(i)} className={`h-[3px] rounded-full flex-1 transition-all ${i === pi ? "bg-white" : "bg-white/25"}`} />)}
-          </div>
-        )}
-        <button className="absolute bottom-4 right-4 w-12 h-12 rounded-full gradient-hot flex items-center justify-center text-white shadow-glow hover:scale-105 transition-transform active:scale-95">
-          <Camera className="w-5 h-5" />
-        </button>
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-5 pt-20">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[26px] font-bold text-white">{me.name}<span className="text-white/60 font-normal ml-1">{me.age}</span></h2>
-            {me.isVerified && <Verified className="w-5 h-5 text-[#00D4FF]" />}
-          </div>
-          <p className="text-white/50 text-sm flex items-center gap-1 mt-0.5"><MapPin className="w-3.5 h-3.5" />{me.location}</p>
-        </div>
-      </div>
-
-      {/* Badges */}
-      {me.badges && me.badges.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {me.badges.map((b) => (
-            <div key={b} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary text-xs font-semibold">
-              {b === "Top Picks" ? "⭐" : b === "Photo Verified" ? "✓" : "❤️"} {b}
+    <div className="space-y-6 animate-fade-in pb-24 max-w-md mx-auto">
+      {/* Header Profile Section */}
+      <div className="relative pt-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="relative group">
+            <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-card shadow-romantic group-hover:scale-105 transition-transform duration-500">
+              <img
+                src={avatarUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Bio */}
-      <div className="bg-card rounded-2xl p-4 shadow-card">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">About</h3>
-        <p className="text-[14px] leading-relaxed">{me.bio}</p>
-      </div>
-
-      {/* Anthem */}
-      {me.anthem && (
-        <div className="bg-card rounded-2xl p-4 shadow-card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-green-500" /></div>
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">My Anthem</p>
-            <p className="text-sm font-semibold">{me.anthem}</p>
+            <button className="absolute -bottom-1 -right-1 w-10 h-10 rounded-2xl gradient-hot text-white border-2 border-card shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
+              <Camera className="w-5 h-5" />
+            </button>
+            {profile.is_verified && (
+              <div className="absolute top-0 -right-2 w-8 h-8 rounded-full bg-white shadow-soft flex items-center justify-center border border-superblue-100">
+                <Verified className="w-5 h-5 text-superblue-500 fill-white" />
+              </div>
+            )}
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-black italic font-serif-display items-center justify-center flex gap-1.5">
+              {profile.name}
+              {profile.age && `, ${profile.age}`}
+            </h2>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">
+              {profile.city || "Student"} • UI Developer
+            </p>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Info */}
-      <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Details</h3>
-        <div className="grid grid-cols-2 gap-3 text-[13px]">
-          <div className="flex items-center gap-2 text-muted-foreground"><Briefcase className="w-3.5 h-3.5 text-primary" />{me.occupation}</div>
-          <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="w-3.5 h-3.5 text-primary" />{me.city}</div>
-          {me.instagram && <div className="flex items-center gap-2 text-muted-foreground col-span-2"><Instagram className="w-3.5 h-3.5 text-pink-500" />{me.instagram}</div>}
+      {/* Completion Tracker */}
+      <div className="mx-1 p-5 rounded-3xl bg-card border border-border/5 shadow-soft space-y-3">
+        <div className="flex justify-between items-center px-1">
+          <h4 className="text-xs font-black uppercase tracking-wider">
+            Hồ sơ đã hoàn tất {completionPercent}%
+          </h4>
+          <span className="text-[10px] font-bold text-primary animate-pulse">
+            NHẬN THÊM LƯỢT THÍCH →
+          </span>
+        </div>
+        <Progress
+          value={completionPercent}
+          className="h-2.5 rounded-full bg-primary/10"
+        />
+      </div>
+
+      {/* Stats Dashboard */}
+      <div className="grid grid-cols-3 gap-3 mx-1">
+        {[
+          {
+            label: "Matches",
+            value: "24",
+            icon: Target,
+            color: "text-red-500",
+          },
+          {
+            label: "Likes",
+            value: "1.2k",
+            icon: Heart,
+            color: "text-pink-500",
+          },
+          { label: "Views", value: "450", icon: Eye, color: "text-purple-500" },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="bg-card p-4 rounded-3xl border border-border/5 shadow-soft text-center group hover:shadow-card transition-all"
+          >
+            <div
+              className={`w-10 h-10 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}
+            >
+              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+            </div>
+            <div className="text-lg font-black">{stat.value}</div>
+            <div className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Actions */}
+      <div className="grid grid-cols-2 gap-3 mx-1">
+        <Button
+          onClick={startEditing}
+          variant="secondary"
+          className="rounded-3xl h-14 font-black shadow-soft bg-card border border-border/10 hover:bg-muted"
+        >
+          <Edit className="w-5 h-5 mr-2 text-primary" /> CHỈNH SỬA
+        </Button>
+        <Button className="rounded-3xl h-14 font-black gradient-gold text-white shadow-glow border-0 hover:scale-105 active:scale-95 transition-all">
+          <Zap className="w-5 h-5 mr-2 fill-white" /> CỰC PHẨM
+        </Button>
+      </div>
+
+      {/* Settings Sections */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
+            Tài khoản & Bảo mật
+          </h4>
+          <div className="bg-card rounded-[2rem] border border-border/5 shadow-soft overflow-hidden mx-1 divide-y divide-border/5">
+            <button
+              onClick={toggleDark}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
+                  {dark ? (
+                    <Moon className="w-5 h-5 text-primary" />
+                  ) : (
+                    <Sun className="w-5 h-5 text-amber-500" />
+                  )}
+                </div>
+                <span className="text-sm font-bold tracking-tight">
+                  {dark ? "Chế độ tối" : "Chế độ sáng"}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            {[
+              {
+                icon: Shield,
+                label: "Quyền riêng tư",
+                color: "text-superblue-500",
+              },
+              { icon: Bell, label: "Thông báo", color: "text-red-500" },
+              {
+                icon: CreditCard,
+                label: "Quản lý gói Gold",
+                color: "text-amber-500",
+              },
+            ].map((item) => (
+              <button
+                key={item.label}
+                className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
+                    <item.icon className={`w-5 h-5 ${item.color}`} />
+                  </div>
+                  <span className="text-sm font-bold tracking-tight">
+                    {item.label}
+                  </span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
+            Khác
+          </h4>
+          <div className="bg-card rounded-[2rem] border border-border/5 shadow-soft overflow-hidden mx-1 divide-y divide-border/5">
+            {[
+              { icon: HelpCircle, label: "Hỗ trợ & Trợ giúp" },
+              { icon: Lock, label: "Chính sách bảo mật" },
+            ].map((item) => (
+              <button
+                key={item.label}
+                className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground">
+                    <item.icon className="w-5 h-5" />
+                  </div>
+                  <span className="text-sm font-bold tracking-tight">
+                    {item.label}
+                  </span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+              </button>
+            ))}
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group text-red-500"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 dark:bg-red-500/10 flex items-center justify-center">
+                  <LogOut className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-black tracking-tight uppercase">
+                  Đăng xuất
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Interests */}
-      <div className="bg-card rounded-2xl p-4 shadow-card">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">Interests</h3>
-        <div className="flex flex-wrap gap-1.5">
-          {me.interests.map((i) => <Badge key={i} variant="secondary" className="text-xs rounded-full px-3 py-1.5">{i}</Badge>)}
-        </div>
-      </div>
+      <p className="text-[9px] font-bold text-muted-foreground/50 text-center uppercase tracking-widest pt-4">
+        Version 1.0.4 • {user?.email}
+      </p>
 
-      {/* Safety */}
-      <div className="bg-card rounded-2xl p-4 shadow-card">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1"><Shield className="w-3 h-3 text-green-500" /> Safety</h3>
-        <div className="space-y-2 text-xs text-muted-foreground">
-          {["Photo Verified ✓","Profiles blurred until match","Block & Report in every chat","Automated scam detection active"].map((t) => (
-            <p key={t} className="flex items-center gap-2"><span className="text-green-500">✓</span>{t}</p>
-          ))}
-        </div>
-      </div>
+      {/* Edit modal */}
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setEditing(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-card rounded-t-[3rem] sm:rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-2xl font-black italic font-serif-display">
+                    Edit Profile
+                  </h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                    Làm mới bản thân để nổi bật hơn
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-      <Button className="w-full gradient-hot border-0 text-white rounded-2xl h-[52px] text-base font-semibold shadow-elevated hover:shadow-glow transition-all active:scale-[0.98]">
-        <Edit className="w-4 h-4 mr-2" /> Edit Profile
-      </Button>
+              <div className="space-y-4">
+                <div className="space-y-1.5 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    Họ & Tên
+                  </label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Tên hiển thị"
+                    className="h-14 rounded-2xl bg-muted/40 border-0 px-6 font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5 px-1">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                      Tuổi
+                    </label>
+                    <Input
+                      type="number"
+                      value={editAge}
+                      onChange={(e) => setEditAge(e.target.value)}
+                      placeholder="Tuổi"
+                      min={18}
+                      max={50}
+                      className="h-14 rounded-2xl bg-muted/40 border-0 px-6 font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1.5 px-1">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                      Giới tính
+                    </label>
+                    <select
+                      value={editGender}
+                      onChange={(e) => setEditGender(e.target.value)}
+                      className="w-full h-14 rounded-2xl bg-muted/40 border-0 px-6 text-sm font-bold appearance-none"
+                    >
+                      <option value="">Chọn...</option>
+                      <option value="male">Nam</option>
+                      <option value="female">Nữ</option>
+                      <option value="other">Khác</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    Thành phố
+                  </label>
+                  <Input
+                    value={editCity}
+                    onChange={(e) => setEditCity(e.target.value)}
+                    placeholder="Nơi ở hiện tại"
+                    className="h-14 rounded-2xl bg-muted/40 border-0 px-6 font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5 px-1">
+                  <div className="flex justify-between items-center ml-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                      Giới thiệu bản thân
+                    </label>
+                    <span className="text-[9px] font-bold text-muted-foreground">
+                      {editBio.length}/300
+                    </span>
+                  </div>
+                  <textarea
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value.slice(0, 300))}
+                    placeholder="Kể câu chuyện của bạn..."
+                    className="w-full h-28 rounded-2xl bg-muted/40 border-0 p-5 text-sm resize-none focus:ring-2 focus:ring-primary/20 focus:outline-none font-medium leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-3 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    Muốn tìm kiếm
+                  </label>
+                  <div className="flex gap-2">
+                    {(
+                      [
+                        ["male", "Nam"],
+                        ["female", "Nữ"],
+                        ["all", "Tất cả"],
+                      ] as const
+                    ).map(([v, l]) => (
+                      <button
+                        key={v}
+                        onClick={() => setEditGenderPref(v)}
+                        className={`flex-1 h-12 rounded-2xl text-xs font-black uppercase tracking-tighter transition-all ${editGenderPref === v ? "gradient-hot text-white shadow-glow" : "bg-muted/40 text-muted-foreground"}`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    Sở thích ({editInterests.length}/8)
+                  </label>
+                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1 scrollbar-none">
+                    {interestTags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => toggleInterest(tag)}
+                        className={`px-4 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-tight transition-all ${editInterests.includes(tag) ? "gradient-hot text-white shadow-sm" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={saveProfile}
+                disabled={saving}
+                className="w-full h-16 rounded-3xl gradient-hot border-0 text-white font-black text-lg shadow-glow mt-4"
+              >
+                {saving ? (
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    {" "}
+                    <Save className="w-5 h-5 mr-2" /> CẬP NHẬT HỒ SƠ{" "}
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

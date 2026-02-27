@@ -1,178 +1,533 @@
-import { mockUsers, mockMessages, mockIceBreakers, mockDateIdeas, type Message } from "@/lib/mock-data";
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, ArrowLeft, ImagePlus, Smile, MoreVertical, Flag, Ban, Lightbulb, Verified, Check, CheckCheck, Mic, MapPin, Star, Coffee, X } from "lucide-react";
+import {
+  Send,
+  ArrowLeft,
+  Smile,
+  Verified,
+  Check,
+  CheckCheck,
+  MoreVertical,
+  Phone,
+  Video,
+  Heart,
+} from "lucide-react";
+import { useAuth, Profile } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
+import { motion, AnimatePresence } from "framer-motion";
 
-const me = mockUsers[0];
-const partners = mockUsers.filter((u) => u.id !== me.id).slice(0, 4);
+interface Match {
+  id: string;
+  user1: string;
+  user2: string;
+  created_at: string;
+}
+
+interface Message {
+  id: string;
+  match_id: string;
+  sender_id: string;
+  content: string;
+  type: string;
+  seen: boolean;
+  created_at: string;
+}
+
+interface ConversationPartner {
+  matchId: string;
+  user: Profile;
+  lastMessage?: Message;
+  unreadCount?: number;
+}
 
 const Messages = () => {
-  const [sel, setSel] = useState<typeof mockUsers[0] | null>(null);
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<ConversationPartner[]>([]);
+  const [activeMatch, setActiveMatch] = useState<string | null>(null);
+  const [activePartner, setActivePartner] = useState<Profile | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState("");
-  const [msgs, setMsgs] = useState<Message[]>(mockMessages);
-  const [typing, setTyping] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [showIce, setShowIce] = useState(false);
-  const [showDates, setShowDates] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const chat = sel ? msgs.filter((m) => (m.senderId===me.id && m.receiverId===sel.id) || (m.senderId===sel.id && m.receiverId===me.id) || m.type==="system") : [];
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat.length]);
+  // Fetch conversations (matches with profiles)
   useEffect(() => {
-    if (sel) { const t1 = setTimeout(() => setTyping(true), 3000); const t2 = setTimeout(() => setTyping(false), 5000); return () => { clearTimeout(t1); clearTimeout(t2); }; }
-  }, [sel]);
+    if (!user) return;
+    const fetchConversations = async () => {
+      setLoading(true);
+      const { data: matches } = await supabase
+        .from("matches")
+        .select("*")
+        .or(`user1.eq.${user.id},user2.eq.${user.id}`)
+        .order("created_at", { ascending: false });
 
-  const send = (c?: string) => {
-    const t = c || newMsg.trim();
-    if (!t || !sel) return;
-    setMsgs((p) => [...p, { id: Date.now().toString(), senderId: me.id, receiverId: sel.id, content: t, timestamp: new Date().toISOString(), type: "text", seen: false }]);
+      if (!matches || matches.length === 0) {
+        setConversations([]);
+        setLoading(false);
+        return;
+      }
+
+      const otherIds = matches.map((m) =>
+        m.user1 === user.id ? m.user2 : m.user1,
+      );
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", otherIds);
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+
+      // Get last message for each match
+      const convos: ConversationPartner[] = [];
+      for (const m of matches) {
+        const otherId = m.user1 === user.id ? m.user2 : m.user1;
+        const profile = profileMap.get(otherId);
+        if (!profile) continue;
+
+        const { data: lastMsgs } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("match_id", m.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        convos.push({
+          matchId: m.id,
+          user: profile,
+          lastMessage: lastMsgs?.[0] || undefined,
+        });
+      }
+
+      setConversations(convos);
+      setLoading(false);
+    };
+    fetchConversations();
+  }, [user]);
+
+  // Fetch messages for active chat
+  useEffect(() => {
+    if (!activeMatch) return;
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("match_id", activeMatch)
+        .order("created_at", { ascending: true });
+      setMessages(data || []);
+
+      // Mark as seen
+      if (data && data.length > 0) {
+        await supabase
+          .from("messages")
+          .update({ seen: true })
+          .eq("match_id", activeMatch)
+          .neq("sender_id", user?.id);
+      }
+    };
+    fetchMessages();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`messages:${activeMatch}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `match_id=eq.${activeMatch}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          setMessages((prev) => {
+            if (prev.find((m) => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+
+          if (newMessage.sender_id !== user?.id) {
+            supabase
+              .from("messages")
+              .update({ seen: true })
+              .eq("id", newMessage.id);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeMatch, user?.id]);
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!newMsg.trim() || !activeMatch || !user) return;
+    const content = newMsg.trim();
     setNewMsg("");
-    setShowIce(false);
-    setShowDates(false);
+
+    const { error } = await supabase.from("messages").insert({
+      match_id: activeMatch,
+      sender_id: user.id,
+      content,
+      type: "text",
+    });
+
+    if (error) {
+      console.error("Send error:", error);
+    }
   };
 
-  const fmtTime = (ts: string) => new Date(ts).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  const fmtTime = (ts: string) => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
-  // ── Chat View ──
-  if (sel) {
+  const fmtDate = (ts: string) => {
+    const d = new Date(ts);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return "Hôm nay";
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return "Hôm qua";
+    return d.toLocaleDateString("vi-VN");
+  };
+
+  // Chat view
+  if (activeMatch && activePartner) {
+    const partnerAvatar =
+      activePartner.avatar_url ||
+      `https://api.dicebear.com/7.x/lorelei/svg?seed=${activePartner.id}&backgroundColor=ffd5dc`;
+
     return (
-      <div className="flex flex-col h-[calc(100vh-8rem)] animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center gap-3 pb-3 border-b relative">
-          <button onClick={() => { setSel(null); setShowMenu(false); setShowDates(false); setShowIce(false); }} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted"><ArrowLeft className="w-5 h-5" /></button>
+      <div className="flex flex-col h-[calc(100vh-140px)] animate-fade-in bg-background">
+        {/* Chat header */}
+        <div className="flex items-center gap-3 p-4 border-b border-border/10 bg-card/50 backdrop-blur-xl sticky top-0 z-20">
+          <button
+            onClick={() => {
+              setActiveMatch(null);
+              setActivePartner(null);
+            }}
+            className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
           <div className="relative">
-            <div className="w-11 h-11 rounded-full overflow-hidden shadow-card"><img src={sel.avatar} alt="" className="w-full h-full object-cover bg-primary/5" /></div>
-            {sel.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-card" />}
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-sm flex items-center gap-1">{sel.name} {sel.isVerified && <Verified className="w-3.5 h-3.5 text-[#00D4FF]" />}</p>
-            <p className="text-xs text-muted-foreground">{sel.isOnline ? <span className="text-green-500">Active now</span> : sel.lastActive}</p>
-          </div>
-          <button onClick={() => setShowMenu(!showMenu)} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted"><MoreVertical className="w-5 h-5" /></button>
-          {showMenu && (
-            <div className="absolute right-0 top-14 w-52 bg-card rounded-2xl shadow-elevated border z-50 p-1.5 animate-scale-in">
-              <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm hover:bg-muted text-left"><MapPin className="w-4 h-4 text-[#667eea]" />Xem vị trí trên Map</button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm hover:bg-muted text-left text-amber-600"><Flag className="w-4 h-4" />Báo cáo (Report)</button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm hover:bg-destructive/10 text-left text-destructive"><Ban className="w-4 h-4" />Chặn (Block)</button>
+            <div className="w-10 h-10 rounded-full overflow-hidden shadow-sm border border-border/10">
+              <img
+                src={partnerAvatar}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             </div>
-          )}
+            {activePartner.is_online && (
+              <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1">
+              <h3 className="font-bold text-sm tracking-tight truncate">
+                {activePartner.name}
+              </h3>
+              {activePartner.is_verified && (
+                <Verified className="w-3.5 h-3.5 text-superblue-500 fill-white" />
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+              {activePartner.is_online ? "Đang hoạt động" : "Ngoại tuyến"}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
+              <Phone className="w-4 h-4" />
+            </button>
+            <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
+              <Video className="w-4 h-4" />
+            </button>
+            <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-3 space-y-1.5 px-0.5" onClick={() => setShowMenu(false)}>
-          {chat.map((m, i) => {
-            if (m.type === "system") return <p key={m.id} className="text-center text-xs text-muted-foreground bg-muted/40 w-fit mx-auto px-3 py-1 rounded-full my-2">{m.content}</p>;
-            const mine = m.senderId === me.id;
-            const showAv = !mine && (i === 0 || chat[i-1]?.senderId !== m.senderId);
-            return (
-              <div key={m.id} className={`flex gap-2 ${mine ? "justify-end" : "justify-start"} animate-slide-up`} style={{ animationDelay: `${i*0.015}s` }}>
-                {!mine && showAv ? <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 mt-auto"><img src={sel.avatar} alt="" className="w-full h-full object-cover bg-primary/5" /></div> : !mine ? <div className="w-7 shrink-0" /> : null}
-                <div className="max-w-[75%] group">
-                  <div className={`px-4 py-2.5 text-[14px] leading-relaxed ${mine ? "gradient-hot text-white rounded-[20px] rounded-br-md shadow-card" : "bg-muted rounded-[20px] rounded-bl-md"}`}>{m.content}</div>
-                  <div className={`flex items-center gap-1 mt-0.5 ${mine ? "justify-end" : ""}`}>
-                    <span className="text-[10px] text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">{fmtTime(m.timestamp)}</span>
-                    {mine && <span className="text-primary/40">{m.seen ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />}</span>}
-                  </div>
-                </div>
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          {messages.length === 0 && (
+            <div className="text-center py-12 space-y-4 max-w-[280px] mx-auto animate-fade-in">
+              <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center mx-auto shadow-inner">
+                <Heart className="w-12 h-12 text-primary/20" />
               </div>
-            );
-          })}
-          {typing && (
-            <div className="flex items-center gap-2 animate-fade-in">
-              <div className="w-7 h-7 rounded-full overflow-hidden shrink-0"><img src={sel.avatar} alt="" className="w-full h-full object-cover bg-primary/5" /></div>
-              <div className="bg-muted rounded-[20px] rounded-bl-md px-4 py-3"><div className="flex gap-1.5"><div className="w-2 h-2 rounded-full bg-muted-foreground/30 animate-bounce" style={{animationDelay:"0ms"}} /><div className="w-2 h-2 rounded-full bg-muted-foreground/30 animate-bounce" style={{animationDelay:"150ms"}} /><div className="w-2 h-2 rounded-full bg-muted-foreground/30 animate-bounce" style={{animationDelay:"300ms"}} /></div></div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Bạn đã match với{" "}
+                <span className="font-bold text-foreground">
+                  {activePartner.name}
+                </span>
+                ! 🎉 Gửi tin nhắn đầu tiên để bắt đầu trò chuyện.
+              </p>
             </div>
           )}
-          <div ref={endRef} />
-        </div>
 
-        {/* Date Ideas panel */}
-        {showDates && (
-          <div className="border-t border-border/40 bg-muted/20 p-3 animate-slide-up max-h-60 overflow-y-auto">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold flex items-center gap-1.5"><Coffee className="w-3.5 h-3.5 text-primary" /> Gợi ý Date hôm nay</p>
-              <button onClick={() => setShowDates(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-2">
-              {mockDateIdeas.slice(0, 4).map((d) => (
-                <button key={d.id} onClick={() => send(`Ê, mình đi ${d.name} không? ${d.emoji} (${d.address})`)} className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-card shadow-card hover:shadow-elevated transition-all text-left">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0"><img src={d.image} alt="" className="w-full h-full object-cover" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{d.emoji} {d.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{d.address}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-amber-500 flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-amber-500" />{d.rating}</span>
-                      <span className="text-[10px] text-muted-foreground">{d.distance}km</span>
-                      <span className="text-[10px] text-muted-foreground">{"$".repeat(d.priceLevel)}</span>
+          <AnimatePresence initial={false}>
+            {messages.map((msg, i) => {
+              const isMe = msg.sender_id === user?.id;
+              const isLast = i === messages.length - 1;
+              const showDate =
+                i === 0 ||
+                fmtDate(msg.created_at) !== fmtDate(messages[i - 1].created_at);
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  key={msg.id}
+                  className="group"
+                >
+                  {showDate && (
+                    <div className="flex items-center justify-center my-6">
+                      <span className="text-[10px] text-muted-foreground bg-muted/30 px-3 py-1 rounded-full font-bold uppercase tracking-widest">
+                        {fmtDate(msg.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex ${isMe ? "justify-end" : "justify-start"} items-end gap-2`}
+                  >
+                    {!isMe && (
+                      <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
+                        <img
+                          src={partnerAvatar}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div
+                      className={`relative max-w-[75%] px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
+                        isMe
+                          ? "gradient-hot text-white rounded-br-md"
+                          : "bg-muted/50 backdrop-blur-sm rounded-bl-md border border-border/5"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <div
+                        className={`flex items-center gap-1.5 mt-1.5 select-none ${isMe ? "justify-end" : ""}`}
+                      >
+                        <span
+                          className={`text-[9px] font-medium tracking-tighter ${isMe ? "text-white/70" : "text-muted-foreground/70"}`}
+                        >
+                          {fmtTime(msg.created_at)}
+                        </span>
+                        {isMe &&
+                          (msg.seen ? (
+                            <CheckCheck className="w-3 h-3 text-white/50" />
+                          ) : (
+                            <Check className="w-3 h-3 text-white/30" />
+                          ))}
+                      </div>
                     </div>
                   </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+          <div ref={bottomRef} className="h-4" />
+        </div>
 
-        {/* Ice breakers */}
-        {showIce && (
-          <div className="border-t border-border/40 bg-primary/3 p-3 animate-slide-up">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5 text-primary" /> Ice-breakers</p>
-              <button onClick={() => setShowIce(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+        {/* Input area */}
+        <div className="p-4 bg-card/30 backdrop-blur-2xl border-t border-border/10">
+          <div className="flex items-end gap-2">
+            <button className="w-11 h-11 rounded-2xl hover:bg-muted flex items-center justify-center text-muted-foreground transition-all active:scale-95 shrink-0">
+              <Smile className="w-6 h-6" />
+            </button>
+            <div className="flex-1 relative">
+              <textarea
+                value={newMsg}
+                onChange={(e) => setNewMsg(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="Aa..."
+                rows={1}
+                className="w-full max-h-32 min-h-[44px] rounded-2xl bg-muted/40 border-0 focus:ring-2 focus:ring-primary/20 py-3 px-4 text-sm resize-none scrollbar-none transition-all"
+                style={{ height: "auto" }}
+              />
             </div>
-            <div className="space-y-1.5">
-              {mockIceBreakers.slice(0, 4).map((ib) => (
-                <button key={ib.id} onClick={() => send(ib.question)} className="w-full text-left text-sm px-3 py-2.5 rounded-xl bg-card hover:bg-primary/5 transition-colors">{ib.emoji} {ib.question}</button>
-              ))}
-            </div>
+            <button
+              onClick={sendMessage}
+              disabled={!newMsg.trim()}
+              className="w-11 h-11 rounded-2xl gradient-hot flex items-center justify-center text-white shadow-romantic hover:scale-105 transition-all active:scale-90 disabled:opacity-40 disabled:scale-100 shrink-0"
+            >
+              <Send className="w-5 h-5 rotate-45 -translate-y-0.5" />
+            </button>
           </div>
-        )}
-
-        {/* Input bar */}
-        <div className="flex items-center gap-2 pt-3 border-t">
-          <button className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted shrink-0"><ImagePlus className="w-5 h-5" /></button>
-          <button onClick={() => { setShowDates(!showDates); setShowIce(false); }} className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${showDates ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}><MapPin className="w-5 h-5" /></button>
-          <button onClick={() => { setShowIce(!showIce); setShowDates(false); }} className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${showIce ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}><Lightbulb className="w-5 h-5" /></button>
-          <div className="flex-1 relative">
-            <Input value={newMsg} onChange={(e) => setNewMsg(e.target.value)} placeholder="Type a message..." onKeyDown={(e) => e.key==="Enter" && send()} className="h-11 rounded-2xl bg-muted/40 border-0 pr-10 focus:ring-2 focus:ring-primary/15" />
-            <button className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"><Smile className="w-5 h-5" /></button>
-          </div>
-          {newMsg.trim() ? (
-            <Button onClick={() => send()} size="icon" className="w-11 h-11 rounded-xl gradient-hot border-0 text-white shadow-card active:scale-90"><Send className="w-4 h-4" /></Button>
-          ) : (
-            <button className="w-11 h-11 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted"><Mic className="w-5 h-5" /></button>
-          )}
         </div>
       </div>
     );
   }
 
-  // ── Chat List ──
+  // Conversation list view
   return (
-    <div className="space-y-4 animate-fade-in">
-      <h1 className="text-2xl font-bold">Messages</h1>
-      <div className="space-y-2">
-        {partners.map((u, i) => {
-          const last = msgs.filter((m) => (m.senderId===me.id && m.receiverId===u.id) || (m.senderId===u.id && m.receiverId===me.id)).at(-1);
-          const unread = msgs.filter((m) => m.senderId===u.id && m.receiverId===me.id && !m.seen).length;
-          return (
-            <button key={u.id} onClick={() => { setSel(u); setShowMenu(false); setShowIce(false); setShowDates(false); }} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card shadow-card hover:shadow-elevated transition-all text-left animate-slide-up" style={{ animationDelay: `${i*0.04}s` }}>
-              <div className="relative shrink-0">
-                <div className="w-14 h-14 rounded-full overflow-hidden shadow-card"><img src={u.avatar} alt="" className="w-full h-full object-cover bg-primary/5" /></div>
-                {u.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-card" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between"><p className="font-semibold text-sm flex items-center gap-1">{u.name} {u.isVerified && <Verified className="w-3.5 h-3.5 text-[#00D4FF]" />}</p><span className="text-[10px] text-muted-foreground">{last ? fmtTime(last.timestamp) : ""}</span></div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-muted-foreground truncate max-w-[200px]">{last?.content || "Gửi tin nhắn đầu tiên..."}</p>
-                  {unread > 0 && <div className="w-5 h-5 rounded-full gradient-hot flex items-center justify-center shrink-0 ml-2"><span className="text-[10px] text-white font-bold">{unread}</span></div>}
-                </div>
-              </div>
-            </button>
-          );
-        })}
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div className="flex items-center justify-between px-1">
+        <h1 className="text-3xl font-black italic font-serif-display text-gradient-flame">
+          Tin nhắn
+        </h1>
+        <div className="w-10 h-10 rounded-full border border-border/30 flex items-center justify-center hover:bg-muted transition-colors cursor-pointer">
+          <MoreVertical className="w-5 h-5 text-muted-foreground" />
+        </div>
       </div>
+
+      <div className="relative group">
+        <Input
+          placeholder="Tìm kiếm cuộc trò chuyện..."
+          className="rounded-full h-12 bg-muted/30 border-0 px-6 focus:ring-2 focus:ring-primary/10 transition-all pl-12"
+        />
+        <svg
+          className="w-5 h-5 text-muted-foreground absolute left-4 top-1/2 -translate-y-1/2"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2.5"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex gap-4 p-4 items-center animate-pulse">
+              <div className="w-16 h-16 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-muted rounded" />
+                <div className="h-3 w-48 bg-muted rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : conversations.length === 0 ? (
+        <div className="text-center py-20 space-y-6 animate-fade-in">
+          <div className="w-32 h-32 rounded-[3.5rem] bg-gradient-to-br from-primary/5 to-muted/10 flex items-center justify-center mx-auto shadow-inner relative">
+            <Send className="w-12 h-12 text-primary/20 rotate-12" />
+            <div className="absolute -top-2 -right-2 w-10 h-10 rounded-full bg-card shadow-card flex items-center justify-center rotate-[-12deg]">
+              <Smile className="w-5 h-5 text-yellow-500" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-black text-xl italic font-serif-display">
+              No heartbeats yet...
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
+              Match với ai đó trên{" "}
+              <span className="text-primary font-bold">Swipe</span> để bắt đầu
+              những cuộc trò chuyện thú vị!
+            </p>
+          </div>
+          <Button
+            onClick={() => (window.location.href = "/swipe")}
+            className="rounded-full px-8 py-6 h-auto font-bold gradient-hot text-white border-0 shadow-glow transition-all active:scale-95"
+          >
+            Bắt đầu khám phá
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-1 divide-y divide-border/5">
+          {conversations.map((convo) => {
+            const avatarUrl =
+              convo.user.avatar_url ||
+              `https://api.dicebear.com/7.x/lorelei/svg?seed=${convo.user.id}&backgroundColor=ffd5dc`;
+            const hasUnread =
+              convo.lastMessage &&
+              !convo.lastMessage.seen &&
+              convo.lastMessage.sender_id !== user?.id;
+
+            return (
+              <motion.button
+                whileHover={{
+                  scale: 1.01,
+                  backgroundColor: "var(--muted-foreground-10)",
+                }}
+                whileTap={{ scale: 0.99 }}
+                key={convo.matchId}
+                onClick={() => {
+                  setActiveMatch(convo.matchId);
+                  setActivePartner(convo.user);
+                }}
+                className={`w-full flex items-center gap-4 p-4 rounded-3xl transition-all text-left ${hasUnread ? "bg-primary/[0.03]" : ""}`}
+              >
+                <div className="relative shrink-0">
+                  <div
+                    className={`w-16 h-16 rounded-[1.75rem] overflow-hidden shadow-card border-2 ${hasUnread ? "border-primary" : "border-transparent"}`}
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {convo.user.is_online ? (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+                  ) : (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-muted-foreground/30 border-2 border-background shadow-sm" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0 py-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3
+                        className={`font-bold text-base tracking-tight truncate ${hasUnread ? "text-foreground" : "text-foreground/90"}`}
+                      >
+                        {convo.user.name}
+                      </h3>
+                      {convo.user.is_verified && (
+                        <Verified className="w-3.5 h-3.5 text-superblue-500 fill-white" />
+                      )}
+                    </div>
+                    {convo.lastMessage && (
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider ${hasUnread ? "text-primary" : "text-muted-foreground"}`}
+                      >
+                        {fmtTime(convo.lastMessage.created_at)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={`text-sm truncate leading-tight ${hasUnread ? "text-foreground font-semibold" : "text-muted-foreground"}`}
+                    >
+                      {convo.lastMessage
+                        ? (convo.lastMessage.sender_id === user?.id
+                            ? "Bạn: "
+                            : "") + convo.lastMessage.content
+                        : "Match mới! Hãy gửi lời chào 👋"}
+                    </p>
+                    {hasUnread && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-glow flex-shrink-0" />
+                    )}
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

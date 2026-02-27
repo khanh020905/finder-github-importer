@@ -32,18 +32,25 @@ const Counter = ({ end, suffix = "" }: { end: number; suffix?: string }) => {
           const step = Math.max(1, Math.floor(end / 60));
           const timer = setInterval(() => {
             start += step;
-            if (start >= end) { setCount(end); clearInterval(timer); }
-            else setCount(start);
+            if (start >= end) {
+              setCount(end);
+              clearInterval(timer);
+            } else setCount(start);
           }, 18);
           obs.disconnect();
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.3 },
     );
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, [end]);
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
+  return (
+    <span ref={ref}>
+      {count.toLocaleString()}
+      {suffix}
+    </span>
+  );
 };
 
 const features = [
@@ -81,7 +88,7 @@ const testimonials = [
   {
     name: "Minh Anh",
     age: 22,
-    avatar: "https://api.dicebear.com/7.x/lorelei/svg?seed=minh-anh&backgroundColor=ffd5dc",
+    avatar: "/assets/images/profile-girl-1.png",
     text: "Mình đã tìm được người ấy chỉ sau 2 tuần sử dụng. Tính năng matching rất chính xác!",
     stars: 5,
     location: "TP. Hồ Chí Minh",
@@ -89,7 +96,7 @@ const testimonials = [
   {
     name: "Đức Huy",
     age: 24,
-    avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=duc-huy&backgroundColor=c0aede",
+    avatar: "/assets/images/profile-guy-1.png",
     text: "App rất dễ dùng, giao diện đẹp. Đặc biệt tính năng Date Ideas giúp mình không phải lo nghĩ chỗ hẹn.",
     stars: 5,
     location: "Hà Nội",
@@ -97,7 +104,7 @@ const testimonials = [
   {
     name: "Thảo Vy",
     age: 21,
-    avatar: "https://api.dicebear.com/7.x/lorelei/svg?seed=thao-vy&backgroundColor=b6e3f4",
+    avatar: "/assets/images/profile-girl-2.png",
     text: "Photo Verified rất hay, mình thấy an tâm hơn nhiều so với các app khác. Highly recommend!",
     stars: 5,
     location: "Đà Nẵng",
@@ -105,10 +112,30 @@ const testimonials = [
 ];
 
 const howItWorks = [
-  { step: 1, title: "Tạo hồ sơ", desc: "Đăng ký miễn phí và tạo hồ sơ hấp dẫn của bạn", icon: Users },
-  { step: 2, title: "Khám phá", desc: "Duyệt qua các hồ sơ và tìm người phù hợp", icon: Heart },
-  { step: 3, title: "Kết nối", desc: "Khi cả hai thích nhau – bắt đầu trò chuyện!", icon: MessageCircle },
-  { step: 4, title: "Hẹn hò", desc: "Gợi ý Date Ideas và tận hưởng khoảnh khắc đặc biệt", icon: MapPin },
+  {
+    step: 1,
+    title: "Tạo hồ sơ",
+    desc: "Đăng ký miễn phí và tạo hồ sơ hấp dẫn của bạn",
+    icon: Users,
+  },
+  {
+    step: 2,
+    title: "Khám phá",
+    desc: "Duyệt qua các hồ sơ và tìm người phù hợp",
+    icon: Heart,
+  },
+  {
+    step: 3,
+    title: "Kết nối",
+    desc: "Khi cả hai thích nhau – bắt đầu trò chuyện!",
+    icon: MessageCircle,
+  },
+  {
+    step: 4,
+    title: "Hẹn hò",
+    desc: "Gợi ý Date Ideas và tận hưởng khoảnh khắc đặc biệt",
+    icon: MapPin,
+  },
 ];
 
 /* ──────────────────────── LANDING ──────────────────────── */
@@ -117,53 +144,106 @@ const Landing = () => {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", h);
-    return () => window.removeEventListener("scroll", h);
-  }, []);
-
-  // Auto-rotate testimonials
-  useEffect(() => {
-    const t = setInterval(() => setActiveTestimonial((p) => (p + 1) % testimonials.length), 5000);
-    return () => clearInterval(t);
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 20,
+        y: (e.clientY / window.innerHeight - 0.5) * 20,
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* ══════════ NAVIGATION ══════════ */}
-      <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled ? "glass-heavy shadow-soft py-3" : "py-5 bg-transparent"
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+      {/* ══════════ GLOBAL NAVIGATION ══════════ */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/70 backdrop-blur-xl border-b border-border/30 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl gradient-hot flex items-center justify-center shadow-card group-hover:shadow-glow transition-shadow">
-              <Heart className="w-5 h-5 text-white fill-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">
-              <span className="text-gradient-flame">Campus</span>
-              <span className="text-foreground">Connect</span>
+          <Link to="/" className="flex items-center group">
+            <span className="text-2xl font-bold tracking-tight">
+              <span className="font-serif-display italic text-gradient-flame">
+                Fin
+              </span>
+              <span>der</span>
             </span>
           </Link>
 
-          {/* Desktop links */}
-          <div className="hidden md:flex items-center gap-8">
-            {["Home", "Features", "How It Works", "Testimonials"].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
-                className={`text-sm font-medium transition-colors hover:text-primary ${
-                  item === "Home" ? "text-primary font-semibold" : "text-muted-foreground"
-                }`}
-              >
-                {item}
-              </a>
-            ))}
-          </div>
+          {/* Desktop nav links */}
+          <nav className="hidden md:flex items-center gap-8">
+            {[
+              { label: "Trang chủ", to: "/" },
+              { label: "Khám phá", to: "/explore" },
+              { label: "Ghép đôi", to: "/matches" },
+              { label: "Tin nhắn", to: "/messages" },
+            ].map((item, i) => {
+              {
+                /* Khám phá with dropdown */
+              }
+              if (item.to === "/explore") {
+                return (
+                  <div key={item.to} className="relative group">
+                    <Link
+                      to={item.to}
+                      className="text-sm font-medium transition-colors hover:text-primary text-muted-foreground py-4"
+                    >
+                      {item.label}
+                      <svg
+                        className="inline-block w-3.5 h-3.5 ml-1 opacity-50 group-hover:opacity-100 transition-all group-hover:rotate-180"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </Link>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                      <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-elevated border border-border/40 p-2 min-w-[180px]">
+                        <Link
+                          to="/explore"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary text-foreground"
+                        >
+                          Tìm bạn đồng hành
+                        </Link>
+                        <Link
+                          to="/events"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary text-foreground"
+                        >
+                          Sự kiện
+                        </Link>
+                        <Link
+                          to="/study-groups"
+                          className="block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary text-foreground"
+                        >
+                          Nhóm học tập
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`text-sm font-medium transition-colors hover:text-primary ${
+                    i === 0
+                      ? "text-primary font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
           {/* Auth buttons */}
           <div className="hidden md:flex items-center gap-3">
@@ -187,22 +267,31 @@ const Landing = () => {
             onClick={() => setMobileMenu(!mobileMenu)}
             className="md:hidden w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
           >
-            {mobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenu ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
 
         {/* Mobile menu */}
         {mobileMenu && (
-          <div className="md:hidden absolute top-full left-0 right-0 glass-heavy border-b shadow-elevated animate-slide-down p-6 space-y-4">
-            {["Home", "Features", "How It Works", "Testimonials"].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
+          <div className="md:hidden border-t border-border/30 p-6 space-y-4">
+            {[
+              { label: "Trang chủ", to: "/" },
+              { label: "Khám phá", to: "/explore" },
+              { label: "Ghép đôi", to: "/matches" },
+              { label: "Tin nhắn", to: "/messages" },
+            ].map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
                 onClick={() => setMobileMenu(false)}
                 className="block text-sm font-medium text-foreground hover:text-primary py-2"
               >
-                {item}
-              </a>
+                {item.label}
+              </Link>
             ))}
             <div className="pt-2 space-y-2">
               <Link
@@ -214,50 +303,95 @@ const Landing = () => {
             </div>
           </div>
         )}
-      </nav>
+      </header>
 
       {/* ══════════ HERO SECTION ══════════ */}
-      <section id="home" className="relative pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden">
+      <section
+        id="home"
+        className="relative pt-40 pb-20 md:pt-48 md:pb-32 overflow-hidden"
+      >
         {/* Background decoration */}
         <div className="absolute inset-0 gradient-hero opacity-70" />
-        <div className="absolute top-20 right-0 w-[500px] h-[500px] bg-gradient-to-br from-red-200/30 to-orange-200/30 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-br from-pink-200/20 to-yellow-200/20 rounded-full blur-[100px]" />
+        <div
+          className="absolute top-20 right-0 w-[600px] h-[600px] bg-gradient-to-br from-red-200/30 to-orange-200/30 rounded-full blur-[140px]"
+          style={{
+            transform: `translate(${mousePos.x * -0.5}px, ${mousePos.y * -0.5}px)`,
+          }}
+        />
+        <div
+          className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-pink-200/20 to-yellow-200/20 rounded-full blur-[120px]"
+          style={{
+            transform: `translate(${mousePos.x * 0.3}px, ${mousePos.y * 0.3}px)`,
+          }}
+        />
 
-        {/* Floating hearts */}
-        <div className="absolute top-32 left-[10%] animate-float opacity-20">
-          <Heart className="w-8 h-8 text-primary fill-primary" />
+        {/* Floating elements with Parallax */}
+        <div
+          className="absolute top-32 left-[10%] animate-float opacity-30"
+          style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)` }}
+        >
+          <Heart className="w-10 h-10 text-primary fill-primary/10" />
         </div>
-        <div className="absolute top-48 right-[15%] animate-float-slow opacity-15" style={{ animationDelay: "1s" }}>
-          <Heart className="w-6 h-6 text-pink-400 fill-pink-400" />
+        <div
+          className="absolute top-48 right-[15%] animate-float-slow opacity-25"
+          style={{
+            transform: `translate(${mousePos.x * -1.5}px, ${mousePos.y * -1.5}px)`,
+          }}
+        >
+          <Heart className="w-8 h-8 text-pink-400 fill-pink-400/10" />
         </div>
-        <div className="absolute bottom-32 left-[20%] animate-float-reverse opacity-10" style={{ animationDelay: "0.5s" }}>
-          <Heart className="w-10 h-10 text-orange-400 fill-orange-400" />
+        <div
+          className="absolute bottom-32 left-[20%] animate-float-reverse opacity-20"
+          style={{
+            transform: `translate(${mousePos.x * 0.8}px, ${mousePos.y * 0.8}px)`,
+          }}
+        >
+          <Heart className="w-12 h-12 text-orange-400 fill-orange-400/10" />
         </div>
 
         {/* Decorative circles */}
-        <div className="absolute top-40 right-[35%] w-3 h-3 rounded-full bg-primary/20 animate-pulse-slow" />
-        <div className="absolute top-60 left-[30%] w-2 h-2 rounded-full bg-orange-400/20 animate-pulse-slow" style={{ animationDelay: "0.8s" }} />
+        <div
+          className="absolute top-40 right-[35%] w-4 h-4 rounded-full bg-primary/20 animate-pulse-slow blur-[1px]"
+          style={{
+            transform: `translate(${mousePos.x * 2}px, ${mousePos.y * 2}px)`,
+          }}
+        />
+        <div
+          className="absolute top-60 left-[30%] w-3 h-3 rounded-full bg-orange-400/20 animate-pulse-slow blur-[1px]"
+          style={{
+            transform: `translate(${mousePos.x * -2}px, ${mousePos.y * -2}px)`,
+          }}
+        />
 
         <div className="relative z-10 max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left content */}
             <div className="space-y-8 animate-fade-up">
-              <div className="inline-flex items-center gap-2 bg-primary/8 border border-primary/15 rounded-full px-4 py-1.5">
+              <div className="inline-flex items-center gap-2 bg-primary/8 border border-primary/15 rounded-full px-5 py-2">
                 <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-xs font-semibold text-primary">Because you Deserve Better!</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                  Better connection for better life
+                </span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
                 <span className="text-foreground">Dating in your </span>
                 <br />
-                <span className="font-serif-display italic text-gradient-romantic font-bold">Favorite </span>
-                <span className="text-gradient-flame font-extrabold">Instant </span>
+                <span className="font-serif-display italic text-gradient-romantic font-bold">
+                  Favorite{" "}
+                </span>
+                <span className="text-gradient-flame font-extrabold">
+                  Instant{" "}
+                </span>
                 <br />
-                <span className="text-gradient-flame font-extrabold">Messengers!</span>
+                <span className="text-gradient-flame font-extrabold">
+                  Messengers!
+                </span>
               </h1>
 
               <p className="text-muted-foreground text-base md:text-lg max-w-lg leading-relaxed">
-                Kết nối với những người đặc biệt xung quanh bạn. Tìm kiếm tình yêu thật sự với tính năng matching thông minh AI.
+                Kết nối với những người đặc biệt xung quanh bạn. Tìm kiếm tình
+                yêu thật sự với tính năng matching thông minh AI.
               </p>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -272,11 +406,16 @@ const Landing = () => {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2.5 shadow-card border border-border/50">
                     <span className="text-sm font-bold">99%</span>
-                    <span className="text-xs text-muted-foreground">Match Rate</span>
+                    <span className="text-xs text-muted-foreground">
+                      Match Rate
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                      <Star
+                        key={i}
+                        className="w-4 h-4 text-amber-400 fill-amber-400"
+                      />
                     ))}
                   </div>
                 </div>
@@ -289,41 +428,53 @@ const Landing = () => {
                     <p className="text-2xl font-bold text-foreground">
                       <Counter end={s.value} suffix={s.suffix} />
                     </p>
-                    <p className="text-[11px] text-muted-foreground font-medium">{s.label}</p>
+                    <p className="text-[11px] text-muted-foreground font-medium">
+                      {s.label}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Right - Hero visual */}
-            <div className="relative flex justify-center lg:justify-end animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="relative flex justify-center lg:justify-end animate-fade-up"
+              style={{ animationDelay: "0.2s" }}
+            >
               {/* Main couple image placeholder with decorative frame */}
               <div className="relative">
                 {/* Yellow background accent */}
                 <div className="absolute -top-8 -right-8 w-80 h-96 bg-gradient-to-br from-amber-300/40 to-orange-300/40 rounded-[3rem] rotate-6 animate-blob" />
-                <div className="absolute -bottom-6 -left-6 w-72 h-80 bg-gradient-to-br from-red-300/30 to-pink-300/30 rounded-[3rem] -rotate-3 animate-blob" style={{ animationDelay: "4s" }} />
+                <div
+                  className="absolute -bottom-6 -left-6 w-72 h-80 bg-gradient-to-br from-red-300/30 to-pink-300/30 rounded-[3rem] -rotate-3 animate-blob"
+                  style={{ animationDelay: "4s" }}
+                />
 
                 {/* Profile cards stack */}
                 <div className="relative z-10">
                   {/* Background card */}
                   <div className="absolute top-8 -left-10 w-56 h-72 rounded-3xl bg-card shadow-card overflow-hidden rotate-[-8deg] border border-border/30">
                     <img
-                      src="https://api.dicebear.com/7.x/lorelei/svg?seed=girl1&backgroundColor=ffd5dc"
+                      src="/assets/images/profile-girl-1.png"
                       alt=""
-                      className="w-full h-full object-cover bg-pink-50"
+                      className="w-full h-full object-cover"
                     />
                   </div>
 
                   {/* Main card */}
                   <div className="relative w-72 h-[380px] rounded-3xl overflow-hidden shadow-elevated border-4 border-white z-20">
                     <img
-                      src="https://api.dicebear.com/7.x/adventurer/svg?seed=hero-couple&backgroundColor=ffdfbf"
+                      src="/assets/images/hero-couple.png"
                       alt="Dating couple"
-                      className="w-full h-full object-cover bg-orange-50"
+                      className="w-full h-full object-cover"
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5 pt-16">
-                      <h3 className="text-white font-bold text-lg">Hẹn hò an toàn</h3>
-                      <p className="text-white/60 text-sm">Verified • 2km away</p>
+                      <h3 className="text-white font-bold text-lg">
+                        Hẹn hò an toàn
+                      </h3>
+                      <p className="text-white/60 text-sm">
+                        Verified • 2km away
+                      </p>
                     </div>
 
                     {/* Like badge */}
@@ -341,16 +492,24 @@ const Landing = () => {
                       <p className="text-sm font-bold">Great Meeting</p>
                       <div className="flex gap-0.5">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          <Star
+                            key={i}
+                            className="w-3 h-3 text-amber-400 fill-amber-400"
+                          />
                         ))}
                       </div>
                     </div>
                   </div>
 
                   {/* Floating verified badge */}
-                  <div className="absolute top-4 -left-4 z-30 bg-card shadow-card rounded-full px-3 py-1.5 flex items-center gap-1.5 animate-float-slow" style={{ animationDelay: "0.5s" }}>
+                  <div
+                    className="absolute top-4 -left-4 z-30 bg-card shadow-card rounded-full px-3 py-1.5 flex items-center gap-1.5 animate-float-slow"
+                    style={{ animationDelay: "0.5s" }}
+                  >
                     <Shield className="w-4 h-4 text-green-500" />
-                    <span className="text-xs font-semibold text-green-600">Verified</span>
+                    <span className="text-xs font-semibold text-green-600">
+                      Verified
+                    </span>
                   </div>
                 </div>
               </div>
@@ -360,7 +519,9 @@ const Landing = () => {
 
         {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-float">
-          <span className="text-xs text-muted-foreground font-medium">Khám phá thêm</span>
+          <span className="text-xs text-muted-foreground font-medium">
+            Khám phá thêm
+          </span>
           <ChevronDown className="w-5 h-5 text-primary" />
         </div>
       </section>
@@ -372,12 +533,16 @@ const Landing = () => {
           <div className="text-center max-w-2xl mx-auto mb-16 animate-fade-up">
             <div className="inline-flex items-center gap-2 bg-primary/8 rounded-full px-4 py-1.5 mb-6">
               <Zap className="w-4 h-4 text-primary" />
-              <span className="text-xs font-semibold text-primary">Tính năng nổi bật</span>
+              <span className="text-xs font-semibold text-primary">
+                Tính năng nổi bật
+              </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
-              We are a <span className="font-serif-display italic">Dynamic</span>
+              We are a{" "}
+              <span className="font-serif-display italic">Dynamic</span>
               <br />
-              <span className="text-gradient-romantic">Lover</span> Communication
+              <span className="text-gradient-romantic">Lover</span>{" "}
+              Communication
             </h2>
             <p className="text-muted-foreground">
               Tất cả những gì bạn cần để tìm kiếm và kết nối với người ấy
@@ -398,14 +563,19 @@ const Landing = () => {
                 </div>
                 <h3 className="text-xl font-bold mb-3">
                   {f.title.split("").map((c, ci) =>
-                    ci < f.title.indexOf(" ") + 1 || f.title.indexOf(" ") === -1 ? (
+                    ci < f.title.indexOf(" ") + 1 ||
+                    f.title.indexOf(" ") === -1 ? (
                       <span key={ci}>{c}</span>
                     ) : (
-                      <span key={ci} className="text-primary">{c}</span>
-                    )
+                      <span key={ci} className="text-primary">
+                        {c}
+                      </span>
+                    ),
                   )}
                 </h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {f.desc}
+                </p>
               </div>
             ))}
           </div>
@@ -418,11 +588,17 @@ const Landing = () => {
         <div className="relative z-10 max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((s, i) => (
-              <div key={i} className="text-center animate-fade-up" style={{ animationDelay: `${i * 100}ms` }}>
+              <div
+                key={i}
+                className="text-center animate-fade-up"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
                 <p className="text-4xl md:text-5xl font-bold text-gradient-flame mb-2">
                   <Counter end={s.value} suffix={s.suffix} />
                 </p>
-                <p className="text-sm text-muted-foreground font-medium">{s.label}</p>
+                <p className="text-sm text-muted-foreground font-medium">
+                  {s.label}
+                </p>
               </div>
             ))}
           </div>
@@ -447,7 +623,7 @@ const Landing = () => {
                   <div className="p-4 space-y-3">
                     <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-gradient-to-br from-pink-100 to-orange-100 relative">
                       <img
-                        src="https://api.dicebear.com/7.x/lorelei/svg?seed=phone-girl&backgroundColor=ffd5dc"
+                        src="/assets/images/profile-girl-2.png"
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -474,29 +650,45 @@ const Landing = () => {
                   </div>
                   <div>
                     <p className="text-[11px] font-bold">It's a Match!</p>
-                    <p className="text-[9px] text-muted-foreground">Bạn và Đức Huy</p>
+                    <p className="text-[9px] text-muted-foreground">
+                      Bạn và Đức Huy
+                    </p>
                   </div>
                 </div>
 
                 {/* Floating message */}
-                <div className="absolute bottom-24 -left-12 bg-card shadow-card rounded-2xl px-4 py-2 animate-float-slow border border-border/30 z-20" style={{ animationDelay: "1s" }}>
-                  <p className="text-[10px] text-muted-foreground">💬 "Hey! Cà phê nhé?"</p>
+                <div
+                  className="absolute bottom-24 -left-12 bg-card shadow-card rounded-2xl px-4 py-2 animate-float-slow border border-border/30 z-20"
+                  style={{ animationDelay: "1s" }}
+                >
+                  <p className="text-[10px] text-muted-foreground">
+                    💬 "Hey! Cà phê nhé?"
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Right content */}
-            <div className="space-y-8 animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="space-y-8 animate-fade-up"
+              style={{ animationDelay: "0.2s" }}
+            >
               <div className="inline-flex items-center gap-2 bg-primary/8 rounded-full px-4 py-1.5">
                 <Globe className="w-4 h-4 text-primary" />
-                <span className="text-xs font-semibold text-primary">Cách hoạt động</span>
+                <span className="text-xs font-semibold text-primary">
+                  Cách hoạt động
+                </span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold leading-tight">
                 Meet The <br />
-                <span className="font-serif-display italic text-gradient-flame">Chosen One</span>
+                <span className="font-serif-display italic text-gradient-flame">
+                  Chosen One
+                </span>
               </h2>
               <p className="text-muted-foreground leading-relaxed">
-                Chỉ với 4 bước đơn giản, bạn sẽ tìm được người ấy. Hệ thống AI matching thông minh giúp kết nối bạn với những người phù hợp nhất.
+                Chỉ với 4 bước đơn giản, bạn sẽ tìm được người ấy. Hệ thống AI
+                matching thông minh giúp kết nối bạn với những người phù hợp
+                nhất.
               </p>
 
               <div className="space-y-6">
@@ -511,10 +703,14 @@ const Landing = () => {
                     </div>
                     <div>
                       <h4 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">
-                        <span className="text-primary font-extrabold mr-1.5">0{item.step}.</span>
+                        <span className="text-primary font-extrabold mr-1.5">
+                          0{item.step}.
+                        </span>
                         {item.title}
                       </h4>
-                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.desc}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -525,17 +721,25 @@ const Landing = () => {
       </section>
 
       {/* ══════════ TESTIMONIALS ══════════ */}
-      <section id="testimonials" className="py-20 md:py-32 relative overflow-hidden">
+      <section
+        id="testimonials"
+        className="py-20 md:py-32 relative overflow-hidden"
+      >
         <div className="absolute inset-0 gradient-hero opacity-50" />
         <div className="relative z-10 max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-16 animate-fade-up">
             <div className="inline-flex items-center gap-2 bg-primary/8 rounded-full px-4 py-1.5 mb-6">
               <Star className="w-4 h-4 text-primary fill-primary" />
-              <span className="text-xs font-semibold text-primary">Đánh giá từ người dùng</span>
+              <span className="text-xs font-semibold text-primary">
+                Đánh giá từ người dùng
+              </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               What Our <br />
-              <span className="font-serif-display italic text-gradient-flame">Customer's</span> Say
+              <span className="font-serif-display italic text-gradient-flame">
+                Customer's
+              </span>{" "}
+              Say
             </h2>
           </div>
 
@@ -544,7 +748,9 @@ const Landing = () => {
               <div
                 key={t.name}
                 className={`bg-card rounded-3xl p-8 shadow-card hover:shadow-elevated transition-all duration-500 border border-border/30 animate-fade-up ${
-                  i === activeTestimonial ? "ring-2 ring-primary/20 shadow-romantic" : ""
+                  i === activeTestimonial
+                    ? "ring-2 ring-primary/20 shadow-romantic"
+                    : ""
                 }`}
                 style={{ animationDelay: `${i * 150}ms` }}
                 onClick={() => setActiveTestimonial(i)}
@@ -552,17 +758,26 @@ const Landing = () => {
                 {/* Stars */}
                 <div className="flex gap-1 mb-4">
                   {[...Array(t.stars)].map((_, si) => (
-                    <Star key={si} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    <Star
+                      key={si}
+                      className="w-4 h-4 text-amber-400 fill-amber-400"
+                    />
                   ))}
                 </div>
 
                 {/* Quote */}
-                <p className="text-sm leading-relaxed text-foreground/80 mb-6 italic">"{t.text}"</p>
+                <p className="text-sm leading-relaxed text-foreground/80 mb-6 italic">
+                  "{t.text}"
+                </p>
 
                 {/* Author */}
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
-                    <img src={t.avatar} alt="" className="w-full h-full object-cover bg-primary/5" />
+                    <img
+                      src={t.avatar}
+                      alt=""
+                      className="w-full h-full object-cover bg-primary/5"
+                    />
                   </div>
                   <div>
                     <p className="font-semibold text-sm">
@@ -588,15 +803,20 @@ const Landing = () => {
             <div className="absolute top-6 left-6 w-20 h-20 rounded-full bg-white/10 animate-float" />
             <div className="absolute bottom-6 right-6 w-16 h-16 rounded-full bg-white/10 animate-float-reverse" />
             <div className="absolute top-1/2 left-10 w-3 h-3 rounded-full bg-white/20 animate-pulse-slow" />
-            <div className="absolute top-10 right-20 w-2 h-2 rounded-full bg-white/25 animate-pulse-slow" style={{ animationDelay: "0.5s" }} />
+            <div
+              className="absolute top-10 right-20 w-2 h-2 rounded-full bg-white/25 animate-pulse-slow"
+              style={{ animationDelay: "0.5s" }}
+            />
 
             <div className="relative z-10 space-y-6">
               <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight">
                 Sẵn sàng tìm <br className="hidden md:block" />
-                <span className="font-serif-display italic">người ấy</span> chưa?
+                <span className="font-serif-display italic">người ấy</span>{" "}
+                chưa?
               </h2>
               <p className="text-white/70 max-w-md mx-auto">
-                Hàng triệu người đang chờ kết nối với bạn. Bắt đầu hành trình tìm kiếm tình yêu ngay hôm nay!
+                Hàng triệu người đang chờ kết nối với bạn. Bắt đầu hành trình
+                tìm kiếm tình yêu ngay hôm nay!
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                 <button
@@ -627,26 +847,42 @@ const Landing = () => {
                   <Heart className="w-5 h-5 text-white fill-white" />
                 </div>
                 <span className="text-xl font-bold tracking-tight">
-                  <span className="text-gradient-flame">Campus</span>Connect
+                  <span className="text-gradient-flame font-serif-display italic">
+                    Fin
+                  </span>
+                  der
                 </span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Ứng dụng hẹn hò dành riêng cho sinh viên Việt Nam. An toàn, thông minh, hiện đại.
+                Ứng dụng hẹn hò dành riêng cho sinh viên Việt Nam. An toàn,
+                thông minh, hiện đại.
               </p>
             </div>
 
             {/* Links */}
             {[
-              { title: "Tính năng", links: ["Swipe", "Explore", "Messages", "Video Call"] },
-              { title: "Hỗ trợ", links: ["FAQ", "Liên hệ", "Chính sách", "Điều khoản"] },
-              { title: "Kết nối", links: ["Facebook", "Instagram", "TikTok", "Twitter"] },
+              {
+                title: "Tính năng",
+                links: ["Swipe", "Explore", "Messages", "Video Call"],
+              },
+              {
+                title: "Hỗ trợ",
+                links: ["FAQ", "Liên hệ", "Chính sách", "Điều khoản"],
+              },
+              {
+                title: "Kết nối",
+                links: ["Facebook", "Instagram", "TikTok", "Twitter"],
+              },
             ].map((col) => (
               <div key={col.title}>
                 <h4 className="font-bold text-sm mb-4">{col.title}</h4>
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
                     <li key={link}>
-                      <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                      <a
+                        href="#"
+                        className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                      >
                         {link}
                       </a>
                     </li>
@@ -658,12 +894,20 @@ const Landing = () => {
 
           <div className="border-t border-border/30 mt-10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2026 CampusConnect. Made with <Heart className="w-3 h-3 text-primary fill-primary inline" /> in Vietnam
+              © 2026 Finder. Made with{" "}
+              <Heart className="w-3 h-3 text-primary fill-primary inline" /> in
+              Vietnam
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-primary transition-colors">Privacy</a>
-              <a href="#" className="hover:text-primary transition-colors">Terms</a>
-              <a href="#" className="hover:text-primary transition-colors">Cookies</a>
+              <a href="#" className="hover:text-primary transition-colors">
+                Privacy
+              </a>
+              <a href="#" className="hover:text-primary transition-colors">
+                Terms
+              </a>
+              <a href="#" className="hover:text-primary transition-colors">
+                Cookies
+              </a>
             </div>
           </div>
         </div>
