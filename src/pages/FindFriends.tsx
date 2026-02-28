@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Filter } from "lucide-react";
 
 const allInterests = Array.from(new Set(mockUsers.flatMap((u) => u.interests)));
-const allMajors = Array.from(new Set(mockUsers.map((u) => u.major)));
+const allMajors = Array.from(new Set(mockUsers.map((u) => u.occupation)));
 const currentUser = mockUsers[0];
 
 const FindFriends = () => {
@@ -24,7 +24,7 @@ const FindFriends = () => {
     .filter((u) => u.id !== currentUser.id)
     .filter((u) => {
       if (search && !u.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (selectedMajor && u.major !== selectedMajor) return false;
+      if (selectedMajor && u.occupation !== selectedMajor) return false;
       if (selectedInterests.length > 0 && !selectedInterests.some((i) => u.interests.includes(i)))
         return false;
       return true;

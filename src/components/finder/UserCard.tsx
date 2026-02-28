@@ -24,7 +24,7 @@ export const UserCard = ({ user, commonTags }: UserCardProps) => {
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{user.major}</p>
+          <p className="text-xs text-muted-foreground">{user.occupation}</p>
           <div className="flex flex-wrap gap-1 mt-2">
             {user.interests.slice(0, 3).map((interest) => (
               <Badge key={interest} variant="outline" className="text-[10px] py-0">
