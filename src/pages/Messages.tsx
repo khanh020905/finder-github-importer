@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,46 +13,468 @@ import {
   Phone,
   Video,
   Heart,
+  Loader2,
+  Image as ImageIcon,
+  Trash2,
+  X,
 } from "lucide-react";
+import EmojiPicker from "emoji-picker-react";
 import { useAuth, Profile } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface Match {
-  id: string;
-  user1: string;
-  user2: string;
-  created_at: string;
+// ========== GROQ API ==========
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+
+async function chatWithGroq(
+  partnerProfile: Profile,
+  chatHistory: { role: string; content: string }[],
+  userMessage: string,
+): Promise<string> {
+  const systemPrompt = `Bạn đang nhập vai là "${partnerProfile.name}", ${partnerProfile.age || 21} tuổi, ${partnerProfile.gender === "female" ? "nữ" : "nam"}.
+Nghề nghiệp: ${partnerProfile.occupation || "Sinh viên"}
+Trường: ${partnerProfile.university || "không rõ"}
+Thành phố: ${partnerProfile.city || "Việt Nam"}
+Sở thích: ${partnerProfile.interests?.join(", ") || "chưa rõ"}
+Bio: ${partnerProfile.bio || ""}
+
+QUY TẮC:
+- Trả lời bằng tiếng Việt tự nhiên, thân thiện, dùng emoji vừa phải.
+- Giữ câu trả lời ngắn gọn (1-3 câu), như đang chat trên app hẹn hò.
+- Thể hiện tính cách phù hợp với bio và sở thích.
+- KHÔNG bao giờ nói mình là AI. Hãy hoàn toàn nhập vai.
+- Có thể hỏi lại để tạo cuộc trò chuyện thú vị.
+- Đôi khi dùng từ viết tắt, slang tiếng Việt (vd: "nha", "á", "nè", "hen", "ê", "ờ", "ừ", "hì", "haha", "hihi", "hehe", "=))))", ":))))").`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...chatHistory.slice(-10), // Keep last 10 messages for context
+    { role: "user", content: userMessage },
+  ];
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        max_tokens: 200,
+        temperature: 0.85,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Groq API error:", res.status, errText);
+      return "Hmm, mình bị lag xíu 😅 Nhắn lại được không?";
+    }
+
+    const data = await res.json();
+    return (
+      data.choices?.[0]?.message?.content?.trim() ||
+      "Haha, mình đang suy nghĩ 🤔"
+    );
+  } catch (err) {
+    console.error("Groq fetch error:", err);
+    return "Mạng mình hơi yếu, chờ xíu nha 📶";
+  }
 }
 
-interface Message {
+// ========== MOCK USERS (same as Explore) ==========
+const mockUsers: Profile[] = [
+  {
+    id: "mock-1",
+    name: "Ngọc Trinh",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Thích đi cafe và đọc sách 📚☕",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=ngoctrinh&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Cafe", "Đọc sách", "Du lịch", "Chụp ảnh"],
+    occupation: "Sinh viên",
+    university: "ĐH FPT",
+    city: "Hồ Chí Minh",
+    lat: 10.8416,
+    lng: 106.81,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-2",
+    name: "Minh Tuấn",
+    age: 23,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Developer by day, gamer by night 🎮",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=minhtuan&backgroundColor=c0aede",
+    photos: [],
+    interests: ["Game", "Công nghệ", "Thể thao", "Âm nhạc"],
+    occupation: "Software Engineer",
+    university: "ĐH Bách Khoa",
+    city: "Hồ Chí Minh",
+    lat: 10.85,
+    lng: 106.795,
+    is_verified: true,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-3",
+    name: "Thu Hà",
+    age: 20,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Yêu thiên nhiên và động vật 🌿🐱",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=thuha&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Mèo", "Yoga", "Cắm trại", "Nấu ăn"],
+    occupation: "Sinh viên",
+    university: "ĐH Sư Phạm",
+    city: "Hồ Chí Minh",
+    lat: 10.855,
+    lng: 106.802,
+    is_verified: false,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-4",
+    name: "Đức Anh",
+    age: 22,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Kinh doanh & Travel lover ✈️",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=ducanh&backgroundColor=b6e3f4",
+    photos: [],
+    interests: ["Du lịch", "Kinh doanh", "Thời trang", "Phim ảnh"],
+    occupation: "Founder startup",
+    university: "ĐH Kinh Tế",
+    city: "Hồ Chí Minh",
+    lat: 10.838,
+    lng: 106.82,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-5",
+    name: "Hương Ly",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Dancing is my therapy 💃",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=huongly&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Khiêu vũ", "Âm nhạc", "Thời trang", "Cafe"],
+    occupation: "Sinh viên",
+    university: "ĐH FPT",
+    city: "Hồ Chí Minh",
+    lat: 10.846,
+    lng: 106.798,
+    is_verified: false,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-6",
+    name: "Quốc Bảo",
+    age: 24,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Photographer | Coffee addict ☕📸",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=quocbao&backgroundColor=d1d4f9",
+    photos: [],
+    interests: ["Chụp ảnh", "Cafe", "Hiking", "Nghệ thuật"],
+    occupation: "Photographer",
+    university: "ĐH Mỹ Thuật",
+    city: "Hồ Chí Minh",
+    lat: 10.833,
+    lng: 106.805,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-7",
+    name: "Mai Phương",
+    age: 20,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Volunteer & bookworm 📖💛",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=maiphuong&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Tình nguyện", "Đọc sách", "Yoga", "Du lịch"],
+    occupation: "Sinh viên",
+    university: "ĐH Quốc Gia",
+    city: "Hồ Chí Minh",
+    lat: 10.86,
+    lng: 106.815,
+    is_verified: false,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-8",
+    name: "Hoàng Nam",
+    age: 23,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Gym rat & foodie 🏋️‍♂️🍜",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=hoangnam&backgroundColor=b6e3f4",
+    photos: [],
+    interests: ["Thể thao", "Nấu ăn", "Game", "Phim ảnh"],
+    occupation: "Personal Trainer",
+    university: "ĐH TDTT",
+    city: "Hồ Chí Minh",
+    lat: 10.848,
+    lng: 106.825,
+    is_verified: true,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  // Da Nang
+  {
+    id: "mock-dn-1",
+    name: "Thanh Trúc",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Sinh viên FPT Đà Nẵng 🎓 Thích chạy bộ ven biển Mỹ Khê.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=thanhtruc&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Thể thao", "Công nghệ", "Cafe", "Du lịch"],
+    occupation: "Sinh viên IT",
+    university: "ĐH FPT Đà Nẵng",
+    city: "Đà Nẵng",
+    lat: 15.9686,
+    lng: 108.2612,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-2",
+    name: "Văn Khoa",
+    age: 22,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Designer tại một startup Đà Nẵng 🎨",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=vankhoa&backgroundColor=b6e3f4",
+    photos: [],
+    interests: ["Nghệ thuật", "Thể thao", "Chụp ảnh", "Âm nhạc"],
+    occupation: "UI/UX Designer",
+    university: "ĐH Bách Khoa ĐN",
+    city: "Đà Nẵng",
+    lat: 16.054,
+    lng: 108.202,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-3",
+    name: "Khánh Linh",
+    age: 20,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Yêu biển và ẩm thực Đà Nẵng 🌊🍜",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=khanhlinh&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Chụp ảnh", "Du lịch", "Nấu ăn", "Yoga"],
+    occupation: "Sinh viên",
+    university: "ĐH Duy Tân",
+    city: "Đà Nẵng",
+    lat: 16.068,
+    lng: 108.223,
+    is_verified: false,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-4",
+    name: "Hữu Phước",
+    age: 23,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Full-stack dev 💻 Fan bóng đá.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=huuphuoc&backgroundColor=c0aede",
+    photos: [],
+    interests: ["Công nghệ", "Thể thao", "Game", "Cafe"],
+    occupation: "Full-stack Developer",
+    university: "ĐH FPT Đà Nẵng",
+    city: "Đà Nẵng",
+    lat: 15.975,
+    lng: 108.253,
+    is_verified: true,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-5",
+    name: "Ngọc Ánh",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Dance crew member 💃✨",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=ngocanh&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Khiêu vũ", "Âm nhạc", "Cafe", "Thời trang"],
+    occupation: "Sinh viên",
+    university: "ĐH Kinh Tế ĐN",
+    city: "Đà Nẵng",
+    lat: 16.044,
+    lng: 108.21,
+    is_verified: false,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-6",
+    name: "Bảo Long",
+    age: 24,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Barista & coffee roaster ☕",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=baolong&backgroundColor=d1d4f9",
+    photos: [],
+    interests: ["Cafe", "Hiking", "Cắm trại", "Chụp ảnh"],
+    occupation: "Barista / Owner",
+    university: "ĐH Đông Á",
+    city: "Đà Nẵng",
+    lat: 16.018,
+    lng: 108.238,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+];
+
+// ========== LOCAL CHAT STORAGE ==========
+interface LocalMessage {
   id: string;
-  match_id: string;
-  sender_id: string;
+  sender: "user" | "partner";
   content: string;
-  type: string;
-  seen: boolean;
-  created_at: string;
+  timestamp: string;
+  type?: "text" | "image";
 }
 
-interface ConversationPartner {
-  matchId: string;
-  user: Profile;
-  lastMessage?: Message;
-  unreadCount?: number;
+function getChatKey(userId: string, partnerId: string) {
+  return `campus-chat-${userId}-${partnerId}`;
 }
 
+function loadLocalChat(userId: string, partnerId: string): LocalMessage[] {
+  try {
+    const data = localStorage.getItem(getChatKey(userId, partnerId));
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalChat(
+  userId: string,
+  partnerId: string,
+  messages: LocalMessage[],
+) {
+  localStorage.setItem(
+    getChatKey(userId, partnerId),
+    JSON.stringify(messages.slice(-100)),
+  );
+}
+
+// ========== MAIN COMPONENT ==========
 const Messages = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<ConversationPartner[]>([]);
-  const [activeMatch, setActiveMatch] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // DB-based conversations
+  const [conversations, setConversations] = useState<
+    {
+      matchId: string;
+      user: Profile;
+      lastMessage?: {
+        content: string;
+        created_at: string;
+        sender_id: string;
+        seen: boolean;
+      };
+    }[]
+  >([]);
+
+  // Active chat state
   const [activePartner, setActivePartner] = useState<Profile | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
+  const [dbMessages, setDbMessages] = useState<
+    {
+      id: string;
+      sender_id: string;
+      content: string;
+      seen: boolean;
+      created_at: string;
+      type: string;
+    }[]
+  >([]);
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [newMsg, setNewMsg] = useState("");
+  const [aiTyping, setAiTyping] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Fetch conversations (matches with profiles)
+  const isMockChat = activePartner?.id.startsWith("mock-");
+
+  // Open chat from URL query ?chat=mock-dn-1
+  useEffect(() => {
+    const chatId = searchParams.get("chat");
+    if (chatId && !activePartner) {
+      const mock = mockUsers.find((u) => u.id === chatId);
+      if (mock) {
+        setActivePartner(mock);
+        if (user) {
+          setLocalMessages(loadLocalChat(user.id, mock.id));
+        }
+      }
+    }
+  }, [searchParams, user, activePartner]);
+
+  // Fetch DB conversations
   useEffect(() => {
     if (!user) return;
     const fetchConversations = async () => {
@@ -68,88 +491,89 @@ const Messages = () => {
         return;
       }
 
-      const otherIds = matches.map((m) =>
+      const otherIds = matches.map((m: any) =>
         m.user1 === user.id ? m.user2 : m.user1,
       );
       const { data: profiles } = await supabase
         .from("profiles")
         .select("*")
         .in("id", otherIds);
-      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-      // Get last message for each match
-      const convos: ConversationPartner[] = [];
+      const convos: typeof conversations = [];
       for (const m of matches) {
         const otherId = m.user1 === user.id ? m.user2 : m.user1;
         const profile = profileMap.get(otherId);
         if (!profile) continue;
-
         const { data: lastMsgs } = await supabase
           .from("messages")
           .select("*")
           .eq("match_id", m.id)
           .order("created_at", { ascending: false })
           .limit(1);
-
         convos.push({
           matchId: m.id,
-          user: profile,
-          lastMessage: lastMsgs?.[0] || undefined,
+          user: profile as Profile,
+          lastMessage: lastMsgs?.[0],
         });
       }
-
       setConversations(convos);
       setLoading(false);
     };
     fetchConversations();
   }, [user]);
 
-  // Fetch messages for active chat
+  // Get mock conversations that have saved chats
+  const mockConversations = user
+    ? mockUsers
+        .filter((m) => {
+          const msgs = loadLocalChat(user.id, m.id);
+          return msgs.length > 0;
+        })
+        .map((m) => {
+          const msgs = loadLocalChat(user.id, m.id);
+          const last = msgs[msgs.length - 1];
+          return { user: m, lastMessage: last };
+        })
+    : [];
+
+  // Fetch DB messages for active non-mock chat
   useEffect(() => {
-    if (!activeMatch) return;
+    if (!activeMatchId || isMockChat) return;
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("messages")
         .select("*")
-        .eq("match_id", activeMatch)
+        .eq("match_id", activeMatchId)
         .order("created_at", { ascending: true });
-      setMessages(data || []);
+      setDbMessages(data || []);
 
-      // Mark as seen
-      if (data && data.length > 0) {
+      if (data && data.length > 0 && user) {
         await supabase
           .from("messages")
           .update({ seen: true })
-          .eq("match_id", activeMatch)
-          .neq("sender_id", user?.id);
+          .eq("match_id", activeMatchId)
+          .neq("sender_id", user.id);
       }
     };
     fetchMessages();
 
-    // Realtime subscription
     const channel = supabase
-      .channel(`messages:${activeMatch}`)
+      .channel(`messages:${activeMatchId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `match_id=eq.${activeMatch}`,
+          filter: `match_id=eq.${activeMatchId}`,
         },
         (payload) => {
-          const newMessage = payload.new as Message;
-          setMessages((prev) => {
+          const newMessage = payload.new as any;
+          setDbMessages((prev) => {
             if (prev.find((m) => m.id === newMessage.id)) return prev;
             return [...prev, newMessage];
           });
-
-          if (newMessage.sender_id !== user?.id) {
-            supabase
-              .from("messages")
-              .update({ seen: true })
-              .eq("id", newMessage.id);
-          }
         },
       )
       .subscribe();
@@ -157,29 +581,140 @@ const Messages = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeMatch, user?.id]);
+  }, [activeMatchId, user?.id, isMockChat]);
 
-  // Scroll to bottom on new message
+  // Auto scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [localMessages, dbMessages, aiTyping]);
 
-  const sendMessage = async () => {
-    if (!newMsg.trim() || !activeMatch || !user) return;
+  // Delete message
+  const deleteMessage = async (msgId: string, isDb: boolean) => {
+    if (isDb) {
+      await supabase.from("messages").delete().eq("id", msgId);
+      setDbMessages((prev) => prev.filter((m) => m.id !== msgId));
+    } else {
+      const updated = localMessages.filter((m) => m.id !== msgId);
+      setLocalMessages(updated);
+      if (user && activePartner)
+        saveLocalChat(user.id, activePartner.id, updated);
+    }
+  };
+
+  // Upload image
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingImage(true);
+    try {
+      if (isMockChat && activePartner) {
+        // Mock image upload: create a blob URL just for local demo
+        const imageUrl = URL.createObjectURL(file);
+        const userMsg: LocalMessage = {
+          id: `msg-${Date.now()}`,
+          sender: "user",
+          content: imageUrl,
+          timestamp: new Date().toISOString(),
+          type: "image",
+        };
+        const updated = [...localMessages, userMsg];
+        setLocalMessages(updated);
+        saveLocalChat(user.id, activePartner.id, updated);
+
+        // Mock AI response
+        setTimeout(() => {
+          const aiMsg: LocalMessage = {
+            id: `msg-${Date.now()}-ai`,
+            sender: "partner",
+            content: "Wow ảnh đẹp quá! 😍",
+            timestamp: new Date().toISOString(),
+            type: "text",
+          };
+          const withAi = [...updated, aiMsg];
+          setLocalMessages(withAi);
+          saveLocalChat(user.id, activePartner.id, withAi);
+        }, 1500);
+      } else if (activeMatchId) {
+        // Upload to Supabase avatars bucket
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `chat_images/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        await supabase.from("messages").insert({
+          match_id: activeMatchId,
+          sender_id: user.id,
+          content: urlData.publicUrl,
+          type: "image",
+        });
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Send message (mock AI chat or DB)
+  const sendMessage = useCallback(async () => {
+    if (!newMsg.trim() || !user) return;
     const content = newMsg.trim();
     setNewMsg("");
 
-    const { error } = await supabase.from("messages").insert({
-      match_id: activeMatch,
-      sender_id: user.id,
-      content,
-      type: "text",
-    });
+    if (isMockChat && activePartner) {
+      // Add user message locally
+      const userMsg: LocalMessage = {
+        id: `msg-${Date.now()}`,
+        sender: "user",
+        content,
+        timestamp: new Date().toISOString(),
+        type: "text",
+      };
+      const updated = [...localMessages, userMsg];
+      setLocalMessages(updated);
+      saveLocalChat(user.id, activePartner.id, updated);
 
-    if (error) {
-      console.error("Send error:", error);
+      // Call Groq API for AI response
+      setAiTyping(true);
+      const history = updated.map((m) => ({
+        role: m.sender === "user" ? "user" : "assistant",
+        content: m.content,
+      }));
+
+      const aiReply = await chatWithGroq(activePartner, history, content);
+
+      const aiMsg: LocalMessage = {
+        id: `msg-${Date.now()}-ai`,
+        sender: "partner",
+        content: aiReply,
+        timestamp: new Date().toISOString(),
+        type: "text",
+      };
+      const withAi = [...updated, aiMsg];
+      setLocalMessages(withAi);
+      saveLocalChat(user.id, activePartner.id, withAi);
+      setAiTyping(false);
+    } else if (activeMatchId) {
+      // DB message
+      await supabase.from("messages").insert({
+        match_id: activeMatchId,
+        sender_id: user.id,
+        content,
+        type: "text",
+      });
     }
-  };
+  }, [newMsg, user, isMockChat, activePartner, localMessages, activeMatchId]);
 
   const fmtTime = (ts: string) => {
     const d = new Date(ts);
@@ -189,21 +724,30 @@ const Messages = () => {
     });
   };
 
-  const fmtDate = (ts: string) => {
-    const d = new Date(ts);
-    const today = new Date();
-    if (d.toDateString() === today.toDateString()) return "Hôm nay";
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return "Hôm qua";
-    return d.toLocaleDateString("vi-VN");
-  };
-
-  // Chat view
-  if (activeMatch && activePartner) {
+  // ========== ACTIVE CHAT VIEW ==========
+  if (activePartner) {
     const partnerAvatar =
       activePartner.avatar_url ||
       `https://api.dicebear.com/7.x/lorelei/svg?seed=${activePartner.id}&backgroundColor=ffd5dc`;
+
+    // Unified messages list
+    const allMessages = isMockChat
+      ? localMessages.map((m) => ({
+          id: m.id,
+          isMe: m.sender === "user",
+          content: m.content,
+          timestamp: m.timestamp,
+          type: m.type || "text",
+          seen: true, // Local messages are always "seen"
+        }))
+      : dbMessages.map((m) => ({
+          id: m.id,
+          isMe: m.sender_id === user?.id,
+          content: m.content,
+          timestamp: m.created_at,
+          type: m.type || "text",
+          seen: m.seen,
+        }));
 
     return (
       <div className="flex flex-col h-[calc(100vh-140px)] animate-fade-in bg-background">
@@ -211,15 +755,21 @@ const Messages = () => {
         <div className="flex items-center gap-3 p-4 border-b border-border/10 bg-card/50 backdrop-blur-xl sticky top-0 z-20">
           <button
             onClick={() => {
-              setActiveMatch(null);
               setActivePartner(null);
+              setActiveMatchId(null);
+              setLocalMessages([]);
+              setDbMessages([]);
+              setSearchParams({});
             }}
             className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div className="relative">
+          <button
+            onClick={() => navigate(`/user-profile?id=${activePartner.id}`)}
+            className="relative"
+          >
             <div className="w-10 h-10 rounded-full overflow-hidden shadow-sm border border-border/10">
               <img
                 src={partnerAvatar}
@@ -230,7 +780,7 @@ const Messages = () => {
             {activePartner.is_online && (
               <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
             )}
-          </div>
+          </button>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1">
@@ -238,11 +788,15 @@ const Messages = () => {
                 {activePartner.name}
               </h3>
               {activePartner.is_verified && (
-                <Verified className="w-3.5 h-3.5 text-superblue-500 fill-white" />
+                <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
               )}
             </div>
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-              {activePartner.is_online ? "Đang hoạt động" : "Ngoại tuyến"}
+              {activePartner.is_online
+                ? "Đang hoạt động"
+                : isMockChat
+                  ? "AI Chat"
+                  : "Ngoại tuyến"}
             </p>
           </div>
 
@@ -260,93 +814,199 @@ const Messages = () => {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-          {messages.length === 0 && (
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+          {allMessages.length === 0 && !aiTyping && (
             <div className="text-center py-12 space-y-4 max-w-[280px] mx-auto animate-fade-in">
               <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center mx-auto shadow-inner">
                 <Heart className="w-12 h-12 text-primary/20" />
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Bạn đã match với{" "}
+                Gửi tin nhắn đầu tiên cho{" "}
                 <span className="font-bold text-foreground">
                   {activePartner.name}
                 </span>
-                ! 🎉 Gửi tin nhắn đầu tiên để bắt đầu trò chuyện.
+                ! 🎉
               </p>
+              {isMockChat && (
+                <p className="text-xs text-muted-foreground/60">
+                  💡 Chat được hỗ trợ bởi AI — trả lời theo tính cách của{" "}
+                  {activePartner.name}
+                </p>
+              )}
             </div>
           )}
 
           <AnimatePresence initial={false}>
-            {messages.map((msg, i) => {
-              const isMe = msg.sender_id === user?.id;
-              const isLast = i === messages.length - 1;
-              const showDate =
-                i === 0 ||
-                fmtDate(msg.created_at) !== fmtDate(messages[i - 1].created_at);
-
-              return (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  key={msg.id}
-                  className="group"
+            {allMessages.map((msg) => (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                key={msg.id}
+                className="group relative"
+              >
+                <div
+                  className={`flex ${msg.isMe ? "justify-end" : "justify-start"} items-end gap-2`}
                 >
-                  {showDate && (
-                    <div className="flex items-center justify-center my-6">
-                      <span className="text-[10px] text-muted-foreground bg-muted/30 px-3 py-1 rounded-full font-bold uppercase tracking-widest">
-                        {fmtDate(msg.created_at)}
-                      </span>
+                  {!msg.isMe && (
+                    <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
+                      <img
+                        src={partnerAvatar}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   )}
+
+                  {msg.isMe && (
+                    <button
+                      onClick={() => deleteMessage(msg.id, !isMockChat)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-500 hover:bg-red-50 rounded-full mb-1"
+                      title="Xóa tin nhắn"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <div
-                    className={`flex ${isMe ? "justify-end" : "justify-start"} items-end gap-2`}
+                    className={`relative max-w-[75%] px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
+                      msg.isMe
+                        ? "gradient-hot text-white rounded-br-md"
+                        : "bg-muted/50 backdrop-blur-sm rounded-bl-md border border-border/5"
+                    } ${msg.type === "image" ? "p-1.5" : ""}`}
                   >
-                    {!isMe && (
-                      <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
-                        <img
-                          src={partnerAvatar}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                    {msg.type === "image" ? (
+                      <img
+                        src={msg.content}
+                        alt="Chat image"
+                        className="rounded-xl w-full max-w-[200px] object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "https://via.placeholder.com/200?text=Lỗi+tải+ảnh";
+                        }}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap break-words">
+                        {msg.content}
+                      </p>
                     )}
                     <div
-                      className={`relative max-w-[75%] px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
-                        isMe
-                          ? "gradient-hot text-white rounded-br-md"
-                          : "bg-muted/50 backdrop-blur-sm rounded-bl-md border border-border/5"
-                      }`}
+                      className={`flex items-center gap-1.5 mt-1.5 select-none ${msg.isMe ? "justify-end" : ""}`}
                     >
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                      <div
-                        className={`flex items-center gap-1.5 mt-1.5 select-none ${isMe ? "justify-end" : ""}`}
+                      <span
+                        className={`text-[9px] font-medium tracking-tighter ${msg.isMe ? "text-white/70" : "text-muted-foreground/70"}`}
                       >
-                        <span
-                          className={`text-[9px] font-medium tracking-tighter ${isMe ? "text-white/70" : "text-muted-foreground/70"}`}
-                        >
-                          {fmtTime(msg.created_at)}
-                        </span>
-                        {isMe &&
-                          (msg.seen ? (
-                            <CheckCheck className="w-3 h-3 text-white/50" />
+                        {fmtTime(msg.timestamp)}
+                      </span>
+                      {msg.isMe && (
+                        <div className="flex">
+                          {msg.seen ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
                           ) : (
-                            <Check className="w-3 h-3 text-white/30" />
-                          ))}
-                      </div>
+                            <Check className="w-3.5 h-3.5 text-white/50" />
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </motion.div>
-              );
-            })}
+                </div>
+              </motion.div>
+            ))}
           </AnimatePresence>
+
+          {/* AI typing indicator */}
+          {aiTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-end gap-2"
+            >
+              <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
+                <img
+                  src={partnerAvatar}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="bg-muted/50 backdrop-blur-sm rounded-2xl rounded-bl-md border border-border/5 px-4 py-3 flex items-center gap-1.5">
+                <div className="flex gap-1">
+                  <span
+                    className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
+                    style={{ animationDelay: "0ms" }}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
+                    style={{ animationDelay: "150ms" }}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
+                    style={{ animationDelay: "300ms" }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground ml-1">
+                  {activePartner.name} đang nhập...
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           <div ref={bottomRef} className="h-4" />
         </div>
 
         {/* Input area */}
-        <div className="p-4 bg-card/30 backdrop-blur-2xl border-t border-border/10">
+        <div className="p-4 bg-card/30 backdrop-blur-2xl border-t border-border/10 relative">
+          <AnimatePresence>
+            {showEmoji && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="absolute bottom-full left-4 mb-2 z-50 shadow-elevated rounded-2xl overflow-hidden"
+              >
+                <div className="flex justify-between items-center bg-card p-2 border-b border-border/10">
+                  <span className="text-xs font-bold px-2 text-muted-foreground">
+                    Chọn Emoji
+                  </span>
+                  <button
+                    onClick={() => setShowEmoji(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <EmojiPicker
+                  onEmojiClick={(e) => {
+                    setNewMsg((prev) => prev + e.emoji);
+                  }}
+                  searchDisabled
+                  skinTonesDisabled
+                  width={300}
+                  height={350}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex items-end gap-2">
-            <button className="w-11 h-11 rounded-2xl hover:bg-muted flex items-center justify-center text-muted-foreground transition-all active:scale-95 shrink-0">
+            <button
+              onClick={() => setShowEmoji(!showEmoji)}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 ${showEmoji ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+            >
               <Smile className="w-6 h-6" />
+            </button>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              disabled={uploadingImage}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingImage}
+              className="w-11 h-11 rounded-2xl hover:bg-muted flex items-center justify-center text-muted-foreground transition-all active:scale-95 shrink-0 disabled:opacity-50"
+            >
+              <ImageIcon className="w-6 h-6" />
             </button>
             <div className="flex-1 relative">
               <textarea
@@ -356,20 +1016,29 @@ const Messages = () => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();
+                    setShowEmoji(false);
                   }
                 }}
-                placeholder="Aa..."
+                placeholder="Nhắn tin..."
                 rows={1}
-                className="w-full max-h-32 min-h-[44px] rounded-2xl bg-muted/40 border-0 focus:ring-2 focus:ring-primary/20 py-3 px-4 text-sm resize-none scrollbar-none transition-all"
+                disabled={aiTyping || uploadingImage}
+                className="w-full max-h-32 min-h-[44px] rounded-2xl bg-muted/40 border-0 focus:ring-2 focus:ring-primary/20 py-3 px-4 text-sm resize-none scrollbar-none transition-all disabled:opacity-50"
                 style={{ height: "auto" }}
               />
             </div>
             <button
-              onClick={sendMessage}
-              disabled={!newMsg.trim()}
+              onClick={() => {
+                sendMessage();
+                setShowEmoji(false);
+              }}
+              disabled={(!newMsg.trim() && !uploadingImage) || aiTyping}
               className="w-11 h-11 rounded-2xl gradient-hot flex items-center justify-center text-white shadow-romantic hover:scale-105 transition-all active:scale-90 disabled:opacity-40 disabled:scale-100 shrink-0"
             >
-              <Send className="w-5 h-5 rotate-45 -translate-y-0.5" />
+              {aiTyping || uploadingImage ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5 rotate-45 -translate-y-0.5" />
+              )}
             </button>
           </div>
         </div>
@@ -377,7 +1046,7 @@ const Messages = () => {
     );
   }
 
-  // Conversation list view
+  // ========== CONVERSATION LIST VIEW ==========
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <div className="flex items-center justify-between px-1">
@@ -409,6 +1078,65 @@ const Messages = () => {
         </svg>
       </div>
 
+      {/* Mock user quick chat list */}
+      {mockConversations.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-1 mb-2">
+            💬 Cuộc trò chuyện
+          </h3>
+          {mockConversations.map((convo) => {
+            const avatarUrl = convo.user.avatar_url;
+            return (
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                key={convo.user.id}
+                onClick={() => {
+                  setActivePartner(convo.user);
+                  if (user)
+                    setLocalMessages(loadLocalChat(user.id, convo.user.id));
+                  setSearchParams({ chat: convo.user.id });
+                }}
+                className="w-full flex items-center gap-4 p-4 rounded-3xl transition-all text-left hover:bg-muted/30"
+              >
+                <div className="relative shrink-0">
+                  <div className="w-14 h-14 rounded-[1.75rem] overflow-hidden shadow-card border-2 border-primary/20">
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {convo.user.is_online && (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 py-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="font-bold text-base tracking-tight truncate">
+                        {convo.user.name}
+                      </h3>
+                      {convo.user.is_verified && (
+                        <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {fmtTime(convo.lastMessage.timestamp)}
+                    </span>
+                  </div>
+                  <p className="text-sm truncate leading-tight text-muted-foreground">
+                    {convo.lastMessage.sender === "user" ? "Bạn: " : ""}
+                    {convo.lastMessage.content}
+                  </p>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* DB conversations */}
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
@@ -421,7 +1149,7 @@ const Messages = () => {
             </div>
           ))}
         </div>
-      ) : conversations.length === 0 ? (
+      ) : conversations.length === 0 && mockConversations.length === 0 ? (
         <div className="text-center py-20 space-y-6 animate-fade-in">
           <div className="w-32 h-32 rounded-[3.5rem] bg-gradient-to-br from-primary/5 to-muted/10 flex items-center justify-center mx-auto shadow-inner relative">
             <Send className="w-12 h-12 text-primary/20 rotate-12" />
@@ -431,102 +1159,105 @@ const Messages = () => {
           </div>
           <div className="space-y-2">
             <h3 className="font-black text-xl italic font-serif-display">
-              No heartbeats yet...
+              Chưa có tin nhắn nào
             </h3>
-            <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
-              Match với ai đó trên{" "}
-              <span className="text-primary font-bold">Swipe</span> để bắt đầu
-              những cuộc trò chuyện thú vị!
+            <p className="text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">
+              Vào <span className="text-primary font-bold">Khám phá</span> để
+              tìm bạn mới và bắt đầu trò chuyện! 💬
             </p>
           </div>
           <Button
-            onClick={() => (window.location.href = "/swipe")}
+            onClick={() => navigate("/explore")}
             className="rounded-full px-8 py-6 h-auto font-bold gradient-hot text-white border-0 shadow-glow transition-all active:scale-95"
           >
-            Bắt đầu khám phá
+            Khám phá ngay
           </Button>
         </div>
       ) : (
-        <div className="space-y-1 divide-y divide-border/5">
-          {conversations.map((convo) => {
-            const avatarUrl =
-              convo.user.avatar_url ||
-              `https://api.dicebear.com/7.x/lorelei/svg?seed=${convo.user.id}&backgroundColor=ffd5dc`;
-            const hasUnread =
-              convo.lastMessage &&
-              !convo.lastMessage.seen &&
-              convo.lastMessage.sender_id !== user?.id;
+        conversations.length > 0 && (
+          <div className="space-y-1">
+            {conversations.length > 0 && (
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-1 mb-2">
+                💌 Cuộc trò chuyện
+              </h3>
+            )}
+            {conversations.map((convo) => {
+              const avatarUrl =
+                convo.user.avatar_url ||
+                `https://api.dicebear.com/7.x/lorelei/svg?seed=${convo.user.id}&backgroundColor=ffd5dc`;
+              const hasUnread =
+                convo.lastMessage &&
+                !convo.lastMessage.seen &&
+                convo.lastMessage.sender_id !== user?.id;
 
-            return (
-              <motion.button
-                whileHover={{
-                  scale: 1.01,
-                  backgroundColor: "var(--muted-foreground-10)",
-                }}
-                whileTap={{ scale: 0.99 }}
-                key={convo.matchId}
-                onClick={() => {
-                  setActiveMatch(convo.matchId);
-                  setActivePartner(convo.user);
-                }}
-                className={`w-full flex items-center gap-4 p-4 rounded-3xl transition-all text-left ${hasUnread ? "bg-primary/[0.03]" : ""}`}
-              >
-                <div className="relative shrink-0">
-                  <div
-                    className={`w-16 h-16 rounded-[1.75rem] overflow-hidden shadow-card border-2 ${hasUnread ? "border-primary" : "border-transparent"}`}
-                  >
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
+              return (
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  key={convo.matchId}
+                  onClick={() => {
+                    setActiveMatchId(convo.matchId);
+                    setActivePartner(convo.user);
+                  }}
+                  className={`w-full flex items-center gap-4 p-4 rounded-3xl transition-all text-left ${hasUnread ? "bg-primary/[0.03]" : ""}`}
+                >
+                  <div className="relative shrink-0">
+                    <div
+                      className={`w-16 h-16 rounded-[1.75rem] overflow-hidden shadow-card border-2 ${hasUnread ? "border-primary" : "border-transparent"}`}
+                    >
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {convo.user.is_online ? (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+                    ) : (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-muted-foreground/30 border-2 border-background shadow-sm" />
+                    )}
                   </div>
-                  {convo.user.is_online ? (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background shadow-sm" />
-                  ) : (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-muted-foreground/30 border-2 border-background shadow-sm" />
-                  )}
-                </div>
 
-                <div className="flex-1 min-w-0 py-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <h3
-                        className={`font-bold text-base tracking-tight truncate ${hasUnread ? "text-foreground" : "text-foreground/90"}`}
-                      >
-                        {convo.user.name}
-                      </h3>
-                      {convo.user.is_verified && (
-                        <Verified className="w-3.5 h-3.5 text-superblue-500 fill-white" />
+                  <div className="flex-1 min-w-0 py-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <h3
+                          className={`font-bold text-base tracking-tight truncate ${hasUnread ? "text-foreground" : "text-foreground/90"}`}
+                        >
+                          {convo.user.name}
+                        </h3>
+                        {convo.user.is_verified && (
+                          <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
+                        )}
+                      </div>
+                      {convo.lastMessage && (
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider ${hasUnread ? "text-primary" : "text-muted-foreground"}`}
+                        >
+                          {fmtTime(convo.lastMessage.created_at)}
+                        </span>
                       )}
                     </div>
-                    {convo.lastMessage && (
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-wider ${hasUnread ? "text-primary" : "text-muted-foreground"}`}
+                    <div className="flex items-center justify-between gap-2">
+                      <p
+                        className={`text-sm truncate leading-tight ${hasUnread ? "text-foreground font-semibold" : "text-muted-foreground"}`}
                       >
-                        {fmtTime(convo.lastMessage.created_at)}
-                      </span>
-                    )}
+                        {convo.lastMessage
+                          ? (convo.lastMessage.sender_id === user?.id
+                              ? "Bạn: "
+                              : "") + convo.lastMessage.content
+                          : "Match mới! Hãy gửi lời chào 👋"}
+                      </p>
+                      {hasUnread && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-glow flex-shrink-0" />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p
-                      className={`text-sm truncate leading-tight ${hasUnread ? "text-foreground font-semibold" : "text-muted-foreground"}`}
-                    >
-                      {convo.lastMessage
-                        ? (convo.lastMessage.sender_id === user?.id
-                            ? "Bạn: "
-                            : "") + convo.lastMessage.content
-                        : "Match mới! Hãy gửi lời chào 👋"}
-                    </p>
-                    {hasUnread && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-glow flex-shrink-0" />
-                    )}
-                  </div>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        )
       )}
     </div>
   );

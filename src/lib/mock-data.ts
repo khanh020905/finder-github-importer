@@ -87,6 +87,7 @@ export interface Event {
   category: string;
   participants: number;
   maxParticipants: number;
+  image: string;
 }
 
 export interface StudyGroup {
@@ -580,6 +581,8 @@ export const mockEvents: Event[] = [
     category: "Music",
     participants: 45,
     maxParticipants: 100,
+    image:
+      "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80", // Live concert stage
   },
   {
     id: "2",
@@ -592,6 +595,8 @@ export const mockEvents: Event[] = [
     category: "Workshop",
     participants: 28,
     maxParticipants: 30,
+    image:
+      "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80", // Workshop/team collaboration
   },
   {
     id: "3",
@@ -604,6 +609,8 @@ export const mockEvents: Event[] = [
     category: "Sports",
     participants: 120,
     maxParticipants: 200,
+    image:
+      "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80", // Football/soccer match
   },
 ];
 

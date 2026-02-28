@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   MessageCircle,
@@ -7,6 +7,7 @@ import {
   Clock,
   Verified,
   Sparkles,
+  ArrowUpDown,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth, Profile } from "@/contexts/AuthContext";
@@ -22,6 +23,7 @@ const Matches = () => {
   const { user, profile: myProfile } = useAuth();
   const [matched, setMatched] = useState<MatchWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<"newest" | "online">("newest");
 
   useEffect(() => {
     if (!user) return;
@@ -67,6 +69,23 @@ const Matches = () => {
     fetchMatches();
   }, [user]);
 
+  // Sorted matches
+  const sortedMatches = useMemo(() => {
+    const copy = [...matched];
+    if (sortBy === "online") {
+      copy.sort((a, b) => {
+        if (a.user.is_online && !b.user.is_online) return -1;
+        if (!a.user.is_online && b.user.is_online) return 1;
+        return (
+          new Date(b.user.last_active).getTime() -
+          new Date(a.user.last_active).getTime()
+        );
+      });
+    }
+    // "newest" is the default order (by match timestamp, already desc)
+    return copy;
+  }, [matched, sortBy]);
+
   const fmt = (ts: string) => {
     const h = Math.floor((Date.now() - new Date(ts).getTime()) / 3600000);
     if (h < 1) return "Vừa xong";
@@ -84,13 +103,31 @@ const Matches = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Heart className="w-6 h-6 text-primary fill-primary" /> Matches
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {matched.length} matches
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Heart className="w-6 h-6 text-primary fill-primary" /> Matches
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {matched.length} matches
+          </p>
+        </div>
+        {matched.length > 0 && (
+          <div className="flex bg-muted/40 rounded-xl p-1 gap-0.5">
+            <button
+              onClick={() => setSortBy("newest")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${sortBy === "newest" ? "bg-card shadow-sm text-primary" : "text-muted-foreground"}`}
+            >
+              Mới nhất
+            </button>
+            <button
+              onClick={() => setSortBy("online")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${sortBy === "online" ? "bg-card shadow-sm text-green-500" : "text-muted-foreground"}`}
+            >
+              Online
+            </button>
+          </div>
+        )}
       </div>
 
       {matched.length === 0 ? (
@@ -118,14 +155,14 @@ const Matches = () => {
               <Sparkles className="w-3.5 h-3.5 text-accent" /> Matches mới
             </h3>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-              {matched.map(({ user: u }) => {
+              {sortedMatches.map(({ user: u }) => {
                 const avatarUrl =
                   u.avatar_url ||
                   `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.id}&backgroundColor=ffd5dc`;
                 return (
                   <Link
                     key={u.id}
-                    to="/messages"
+                    to={`/messages?chat=${u.id}`}
                     className="flex flex-col items-center gap-1.5 shrink-0 group"
                   >
                     <div className="relative">
@@ -165,7 +202,7 @@ const Matches = () => {
             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Tất cả
             </h3>
-            {matched.map(({ user: u, timestamp }, i) => {
+            {sortedMatches.map(({ user: u, timestamp }, i) => {
               const cc = myProfile
                 ? u.interests.filter((x) => myProfile.interests.includes(x))
                     .length
@@ -176,7 +213,7 @@ const Matches = () => {
               return (
                 <Link
                   key={u.id}
-                  to="/messages"
+                  to={`/messages?chat=${u.id}`}
                   className="flex items-center gap-3 p-3 rounded-2xl bg-card shadow-card hover:shadow-elevated transition-all group animate-slide-up"
                   style={{ animationDelay: `${i * 0.05}s` }}
                 >
@@ -200,6 +237,11 @@ const Matches = () => {
                       </h3>
                       {u.is_verified && (
                         <Verified className="w-4 h-4 text-[#00D4FF]" />
+                      )}
+                      {u.is_online && (
+                        <span className="text-[9px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded-full uppercase">
+                          Online
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">

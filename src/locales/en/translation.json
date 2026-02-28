@@ -1,0 +1,38 @@
+{
+  "navigation": {
+    "home": "Home",
+    "explore": "Explore",
+    "matches": "Matches",
+    "messages": "Messages",
+    "profile": "Profile"
+  },
+  "explore": {
+    "title": "Find Companions",
+    "subtitle": "Connect with students around you",
+    "search_placeholder": "Search students...",
+    "views": {
+      "map": "Map",
+      "grid": "Grid",
+      "list": "List"
+    },
+    "filters": {
+      "title": "Filters",
+      "clear": "Clear",
+      "apply": "Apply",
+      "distance": "Distance",
+      "age": "Age",
+      "gender": "Gender",
+      "interests": "Interests",
+      "all": "All",
+      "male": "Male",
+      "female": "Female",
+      "other": "Other"
+    },
+    "card": {
+      "view_profile": "View Profile",
+      "message": "Message",
+      "match_percent": "Match",
+      "common_interests": "common interests"
+    }
+  }
+}

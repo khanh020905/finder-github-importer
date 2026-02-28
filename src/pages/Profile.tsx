@@ -28,8 +28,9 @@ import {
   Trophy,
   Zap,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -68,6 +69,12 @@ const Profile = () => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const { t, i18n } = useTranslation();
+
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
+  };
+
   // Edit form state
   const [editName, setEditName] = useState(profile?.name || "");
   const [editAge, setEditAge] = useState(profile?.age?.toString() || "");
@@ -80,6 +87,57 @@ const Profile = () => {
     profile?.interests || [],
   );
   const [editCity, setEditCity] = useState(profile?.city || "");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filePath = `avatar-${user.id}.${ext}`;
+
+      // Upload file (upsert to overwrite previous avatar)
+      const { error: uploadErr } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      // Use signed URL (works even if bucket is not public)
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from("avatars")
+        .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10); // 10 year expiry
+
+      if (signErr || !signedData?.signedUrl) {
+        throw signErr || new Error("Không thể tạo URL ảnh");
+      }
+
+      const avatarUrl = signedData.signedUrl;
+      console.log("Avatar URL:", avatarUrl);
+
+      // Update profile with new avatar URL
+      const { error: updateErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: avatarUrl })
+        .eq("id", user.id);
+
+      if (updateErr) throw updateErr;
+
+      await refreshProfile();
+      toast({ title: "Đã cập nhật ảnh đại diện! 📸" });
+    } catch (err: any) {
+      console.error("Avatar upload failed:", err);
+      toast({
+        title: "Lỗi tải ảnh",
+        description: err?.message || "Không thể tải ảnh lên",
+        variant: "destructive",
+      });
+    }
+    setUploadingAvatar(false);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  };
 
   const completionPercent = useMemo(() => {
     if (!profile) return 0;
@@ -149,20 +207,31 @@ const Profile = () => {
     navigate("/login");
   };
 
-  const avatarUrl =
-    profile?.avatar_url ||
-    `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.id}&backgroundColor=ffd5dc`;
+  // Use profile directly, or fallback to show page immediately
+  const displayProfile = profile || {
+    id: user?.id || "",
+    name: user?.email?.split("@")[0] || "User",
+    age: null,
+    gender: null,
+    gender_preference: null,
+    bio: "",
+    avatar_url: "",
+    photos: [] as string[],
+    interests: [] as string[],
+    occupation: "",
+    university: "",
+    city: "",
+    lat: null,
+    lng: null,
+    is_verified: false,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  };
 
-  if (!profile) {
-    return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
-          <div className="absolute inset-0 rounded-full border-4 border-t-primary animate-spin" />
-        </div>
-      </div>
-    );
-  }
+  const avatarUrl =
+    displayProfile.avatar_url ||
+    `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.id}&backgroundColor=ffd5dc`;
 
   return (
     <div className="space-y-6 animate-fade-in pb-24 max-w-md mx-auto">
@@ -177,10 +246,25 @@ const Profile = () => {
                 className="w-full h-full object-cover"
               />
             </div>
-            <button className="absolute -bottom-1 -right-1 w-10 h-10 rounded-2xl gradient-hot text-white border-2 border-card shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
-              <Camera className="w-5 h-5" />
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="absolute -bottom-1 -right-1 w-10 h-10 rounded-2xl gradient-hot text-white border-2 border-card shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+            >
+              {uploadingAvatar ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Camera className="w-5 h-5" />
+              )}
             </button>
-            {profile.is_verified && (
+            {displayProfile.is_verified && (
               <div className="absolute top-0 -right-2 w-8 h-8 rounded-full bg-white shadow-soft flex items-center justify-center border border-superblue-100">
                 <Verified className="w-5 h-5 text-superblue-500 fill-white" />
               </div>
@@ -188,11 +272,11 @@ const Profile = () => {
           </div>
           <div className="text-center">
             <h2 className="text-2xl font-black italic font-serif-display items-center justify-center flex gap-1.5">
-              {profile.name}
-              {profile.age && `, ${profile.age}`}
+              {displayProfile.name}
+              {displayProfile.age && `, ${displayProfile.age}`}
             </h2>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">
-              {profile.city || "Student"} • UI Developer
+              {displayProfile.city || "Student"} • UI Developer
             </p>
           </div>
         </div>
@@ -248,18 +332,18 @@ const Profile = () => {
         ))}
       </div>
 
-      {/* Main Actions */}
       <div className="grid grid-cols-2 gap-3 mx-1">
-        <Button
+        <button
           onClick={startEditing}
-          variant="secondary"
-          className="rounded-3xl h-14 font-black shadow-soft bg-card border border-border/10 hover:bg-muted"
+          className="flex items-center justify-center gap-2 rounded-3xl h-14 font-bold shadow-soft bg-card border border-border/10 hover:bg-muted/80 transition-all active:scale-[0.97] text-sm"
         >
-          <Edit className="w-5 h-5 mr-2 text-primary" /> CHỈNH SỬA
-        </Button>
-        <Button className="rounded-3xl h-14 font-black gradient-gold text-white shadow-glow border-0 hover:scale-105 active:scale-95 transition-all">
-          <Zap className="w-5 h-5 mr-2 fill-white" /> CỰC PHẨM
-        </Button>
+          <Edit className="w-4 h-4 text-primary" />
+          <span>CHỈNH SỬA</span>
+        </button>
+        <button className="flex items-center justify-center gap-2 rounded-3xl h-14 font-bold gradient-gold text-white shadow-glow border-0 hover:scale-105 active:scale-95 transition-all text-sm">
+          <Zap className="w-4 h-4 fill-white" />
+          <span>CỰC PHẨM</span>
+        </button>
       </div>
 
       {/* Settings Sections */}
@@ -269,6 +353,46 @@ const Profile = () => {
             Tài khoản & Bảo mật
           </h4>
           <div className="bg-card rounded-[2rem] border border-border/5 shadow-soft overflow-hidden mx-1 divide-y divide-border/5">
+            {/* i18n Language Switcher */}
+            <div className="bg-card rounded-3xl p-6 shadow-soft border border-border/10 space-y-4">
+              <div className="flex items-center gap-3 mb-2 px-1">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base tracking-tight leading-none text-foreground">
+                    Ngôn ngữ / Language
+                  </h3>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1">
+                    Hiển thị giao diện
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleLanguageChange("vi")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all ${
+                    i18n.language === "vi"
+                      ? "bg-primary text-white shadow-glow ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  Tiếng Việt
+                </button>
+                <button
+                  onClick={() => handleLanguageChange("en")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all ${
+                    i18n.language === "en"
+                      ? "bg-primary text-white shadow-glow ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+
             <button
               onClick={toggleDark}
               className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
@@ -463,12 +587,12 @@ const Profile = () => {
                       Giới thiệu bản thân
                     </label>
                     <span className="text-[9px] font-bold text-muted-foreground">
-                      {editBio.length}/300
+                      {editBio.length}/150
                     </span>
                   </div>
                   <textarea
                     value={editBio}
-                    onChange={(e) => setEditBio(e.target.value.slice(0, 300))}
+                    onChange={(e) => setEditBio(e.target.value.slice(0, 150))}
                     placeholder="Kể câu chuyện của bạn..."
                     className="w-full h-28 rounded-2xl bg-muted/40 border-0 p-5 text-sm resize-none focus:ring-2 focus:ring-primary/20 focus:outline-none font-medium leading-relaxed"
                   />

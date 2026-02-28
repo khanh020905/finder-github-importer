@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useTranslation } from "react-i18next";
 import Splash from "./pages/Splash";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -17,8 +18,10 @@ import Matches from "./pages/Matches";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import Events from "./pages/Events";
+import EventDetail from "./pages/EventDetail";
 import StudyGroups from "./pages/StudyGroups";
 import NotFound from "./pages/NotFound";
+import UserProfile from "./pages/UserProfile";
 
 const queryClient = new QueryClient();
 
@@ -138,11 +141,31 @@ const AppRoutes = () => (
       }
     />
     <Route
+      path="/events/:id"
+      element={
+        <ProtectedRoute>
+          <AppLayout>
+            <EventDetail />
+          </AppLayout>
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/study-groups"
       element={
         <ProtectedRoute>
           <AppLayout>
             <StudyGroups />
+          </AppLayout>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/user-profile"
+      element={
+        <ProtectedRoute>
+          <AppLayout>
+            <UserProfile />
           </AppLayout>
         </ProtectedRoute>
       }

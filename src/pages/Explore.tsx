@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,9 @@ import {
   MessageCircle,
   Navigation,
   Locate,
+  LayoutGrid,
+  List,
+  Map,
 } from "lucide-react";
 import { useAuth, Profile } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -198,6 +202,133 @@ const mockUsers: (Profile & { distance?: number })[] = [
     last_active: new Date().toISOString(),
     created_at: new Date().toISOString(),
   },
+  // ========== ĐÀ NẴNG USERS ==========
+  {
+    id: "mock-dn-1",
+    name: "Thanh Trúc",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Sinh viên FPT Đà Nẵng 🎓 Thích chạy bộ ven biển Mỹ Khê mỗi sáng và học lập trình web.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=thanhtruc&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Thể thao", "Công nghệ", "Cafe", "Du lịch"],
+    occupation: "Sinh viên IT",
+    university: "ĐH FPT Đà Nẵng",
+    city: "Đà Nẵng",
+    lat: 15.9686,
+    lng: 108.2612,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-2",
+    name: "Văn Khoa",
+    age: 22,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Designer tại một startup Đà Nẵng 🎨 Thích surf và khám phá Bà Nà Hills vào cuối tuần.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=vankhoa&backgroundColor=b6e3f4",
+    photos: [],
+    interests: ["Nghệ thuật", "Thể thao", "Chụp ảnh", "Âm nhạc"],
+    occupation: "UI/UX Designer",
+    university: "ĐH Bách Khoa ĐN",
+    city: "Đà Nẵng",
+    lat: 16.054,
+    lng: 108.202,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-3",
+    name: "Khánh Linh",
+    age: 20,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Yêu biển và ẩm thực Đà Nẵng 🌊🍜 Hay đi Sơn Trà chụp ảnh voọc.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=khanhlinh&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Chụp ảnh", "Du lịch", "Nấu ăn", "Yoga"],
+    occupation: "Sinh viên",
+    university: "ĐH Duy Tân",
+    city: "Đà Nẵng",
+    lat: 16.068,
+    lng: 108.223,
+    is_verified: false,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-4",
+    name: "Hữu Phước",
+    age: 23,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Full-stack dev 💻 Làm việc remote tại coworking space. Fan bóng đá và hay đá phủi ở Hòa Xuân.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=huuphuoc&backgroundColor=c0aede",
+    photos: [],
+    interests: ["Công nghệ", "Thể thao", "Game", "Cafe"],
+    occupation: "Full-stack Developer",
+    university: "ĐH FPT Đà Nẵng",
+    city: "Đà Nẵng",
+    lat: 15.975,
+    lng: 108.253,
+    is_verified: true,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-5",
+    name: "Ngọc Ánh",
+    age: 21,
+    gender: "female",
+    gender_preference: "male",
+    bio: "Dance crew member 💃✨ Biểu diễn tại các sự kiện ở Đà Nẵng. Thích cà phê muối Hội An!",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=ngocanh&backgroundColor=ffd5dc",
+    photos: [],
+    interests: ["Khiêu vũ", "Âm nhạc", "Cafe", "Thời trang"],
+    occupation: "Sinh viên",
+    university: "ĐH Kinh Tế ĐN",
+    city: "Đà Nẵng",
+    lat: 16.044,
+    lng: 108.21,
+    is_verified: false,
+    is_online: false,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "mock-dn-6",
+    name: "Bảo Long",
+    age: 24,
+    gender: "male",
+    gender_preference: "female",
+    bio: "Barista & coffee roaster ☕ Mở quán nhỏ ở Ngũ Hành Sơn. Thích trekking và camping dã ngoại.",
+    avatar_url:
+      "https://api.dicebear.com/7.x/lorelei/svg?seed=baolong&backgroundColor=d1d4f9",
+    photos: [],
+    interests: ["Cafe", "Hiking", "Cắm trại", "Chụp ảnh"],
+    occupation: "Barista / Owner",
+    university: "ĐH Đông Á",
+    city: "Đà Nẵng",
+    lat: 16.018,
+    lng: 108.238,
+    is_verified: true,
+    is_online: true,
+    last_active: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  },
 ];
 
 // ========== HAVERSINE ==========
@@ -251,10 +382,12 @@ function LeafletMap({
   center,
   users,
   onLocate,
+  onMapClick,
 }: {
   center: [number, number];
   users: (Profile & { distance?: number })[];
   onLocate: () => void;
+  onMapClick?: (lat: number, lng: number) => void;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -280,6 +413,11 @@ function LeafletMap({
 
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+
+    // Click on map to set location manually
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      if (onMapClick) onMapClick(e.latlng.lat, e.latlng.lng);
+    });
 
     return () => {
       map.remove();
@@ -376,8 +514,8 @@ function LeafletMap({
           ${u.bio ? `<div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.4;">${u.bio}</div>` : ""}
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">${tags}</div>
           <div style="display:flex;gap:6px;">
-            <a href="/swipe?user=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:linear-gradient(135deg,#E8311A,#ff6b4a);color:#fff;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">❤️ Thích</a>
-            <a href="/messages" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">💬 Nhắn tin</a>
+            <a href="/user-profile?id=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:linear-gradient(135deg,#E8311A,#ff6b4a);color:#fff;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">❤️ Xem hồ sơ</a>
+            <a href="/messages?chat=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">💬 Nhắn tin</a>
           </div>
         </div>
       `;
@@ -409,58 +547,155 @@ function LeafletMap({
 // ========== MAIN COMPONENT ==========
 const Explore = () => {
   const { user, profile: myProfile } = useAuth();
+  const navigate = useNavigate();
   const [dbUsers, setDbUsers] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [showFilter, setShowFilter] = useState(false);
   const [filterGender, setFilterGender] = useState<string>("all");
   const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterDistance, setFilterDistance] = useState<number>(100);
+  const [filterAgeMin, setFilterAgeMin] = useState<number>(18);
+  const [filterAgeMax, setFilterAgeMax] = useState<number>(35);
+  const [viewMode, setViewMode] = useState<"map" | "grid" | "list">("map");
   const [myLat, setMyLat] = useState<number>(10.8416);
   const [myLng, setMyLng] = useState<number>(106.8098);
   const [locationGranted, setLocationGranted] = useState(false);
+  const [locationJustGranted, setLocationJustGranted] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const pageTopRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top of the entire page smoothly
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  // Handle successful location
+  const handleLocationSuccess = useCallback(
+    (lat: number, lng: number) => {
+      setMyLat(lat);
+      setMyLng(lng);
+      setLocationGranted(true);
+      setLocationDenied(false);
+      setLocationLoading(false);
+      setLocationJustGranted(true);
+
+      // Auto scroll to top when location is granted
+      setTimeout(() => {
+        scrollToTop();
+      }, 100);
+
+      // Clear the "just granted" animation after 2s
+      setTimeout(() => {
+        setLocationJustGranted(false);
+      }, 2000);
+
+      if (user) {
+        supabase
+          .from("profiles")
+          .update({ lat, lng })
+          .eq("id", user.id)
+          .then(() => {});
+      }
+    },
+    [user, scrollToTop],
+  );
+
+  // Prevent multiple location requests
+  const locationRequested = useRef(false);
 
   // Get user geolocation
-  const requestLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setMyLat(pos.coords.latitude);
-          setMyLng(pos.coords.longitude);
-          setLocationGranted(true);
-          if (user) {
-            supabase
-              .from("profiles")
-              .update({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-              .eq("id", user.id)
-              .then(() => {});
-          }
-        },
-        () => setLocationGranted(false),
-      );
+  const requestLocation = useCallback(() => {
+    setLocationLoading(true);
+    setLocationDenied(false);
+
+    if (!navigator.geolocation) {
+      console.warn("Geolocation API not available");
+      const lat = myProfile?.lat || 10.8231;
+      const lng = myProfile?.lng || 106.6297;
+      handleLocationSuccess(lat, lng);
+      return;
     }
-  };
+
+    // Try low accuracy first (faster)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        console.log(
+          "✅ Got location (low accuracy):",
+          pos.coords.latitude,
+          pos.coords.longitude,
+        );
+        handleLocationSuccess(pos.coords.latitude, pos.coords.longitude);
+      },
+      (err1) => {
+        console.warn(
+          "⚠️ Low accuracy failed:",
+          err1.message,
+          "- trying high accuracy...",
+        );
+        // Retry with high accuracy
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            console.log(
+              "✅ Got location (high accuracy):",
+              pos.coords.latitude,
+              pos.coords.longitude,
+            );
+            handleLocationSuccess(pos.coords.latitude, pos.coords.longitude);
+          },
+          (err2) => {
+            console.warn("❌ High accuracy also failed:", err2.message);
+            // Use saved profile location or default
+            if (myProfile?.lat && myProfile?.lng) {
+              console.log(
+                "📍 Using saved profile location:",
+                myProfile.lat,
+                myProfile.lng,
+              );
+              handleLocationSuccess(myProfile.lat, myProfile.lng);
+            } else {
+              console.log("📍 Using default HCM City location");
+              handleLocationSuccess(10.8231, 106.6297);
+              setLocationDenied(true);
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        );
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+    );
+  }, [handleLocationSuccess, myProfile]);
 
   useEffect(() => {
+    if (locationRequested.current) return;
+    locationRequested.current = true;
     requestLocation();
   }, [user]);
 
   // Fetch real users from DB
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     const fetchUsers = async () => {
-      setLoading(true);
-      let query = supabase
-        .from("profiles")
-        .select("*")
-        .neq("id", user.id)
-        .not("name", "eq", "");
-      if (filterGender !== "all") {
-        query = query.eq("gender", filterGender);
+      try {
+        let query = supabase
+          .from("profiles")
+          .select("*")
+          .neq("id", user.id)
+          .not("name", "eq", "");
+        if (filterGender !== "all") {
+          query = query.eq("gender", filterGender);
+        }
+        const { data } = await query
+          .order("last_active", { ascending: false })
+          .limit(50);
+        setDbUsers((data || []).filter((p) => p.name));
+      } catch (e) {
+        console.warn("Failed to fetch users:", e);
       }
-      const { data } = await query
-        .order("last_active", { ascending: false })
-        .limit(50);
-      setDbUsers((data || []).filter((p) => p.name));
       setLoading(false);
     };
     fetchUsers();
@@ -491,6 +726,10 @@ const Explore = () => {
       )
         return false;
       if (filterGender !== "all" && u.gender !== filterGender) return false;
+      // Distance filter
+      if (u.distance !== undefined && u.distance > filterDistance) return false;
+      // Age filter
+      if (u.age && (u.age < filterAgeMin || u.age > filterAgeMax)) return false;
       return true;
     })
     .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
@@ -502,7 +741,7 @@ const Explore = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
+    <div ref={pageTopRef} className="space-y-6 animate-fade-in pb-20">
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -513,42 +752,167 @@ const Explore = () => {
             {allUsers.length} người gần bạn
           </p>
         </div>
-        <button
-          onClick={requestLocation}
-          className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center hover:bg-primary/10 transition-colors"
-          title="Cập nhật vị trí"
-        >
-          <Locate className="w-5 h-5 text-primary" />
-        </button>
-      </div>
-
-      {/* ═══════ MAP (plain Leaflet) ═══════ */}
-      <LeafletMap
-        center={[myLat, myLng]}
-        users={allUsers}
-        onLocate={requestLocation}
-      />
-
-      {/* Location permission banner */}
-      {!locationGranted && (
-        <div className="flex items-center gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/10">
-          <Navigation className="w-5 h-5 text-primary shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">
-              Bật vị trí để tìm bạn gần bạn
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Cho phép truy cập vị trí để xem khoảng cách
-            </p>
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex bg-muted/40 rounded-xl p-1 gap-0.5">
+            {(
+              [
+                ["map", Map],
+                ["grid", LayoutGrid],
+                ["list", List],
+              ] as const
+            ).map(([mode, Icon]) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode as any)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${viewMode === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            ))}
           </div>
           <button
             onClick={requestLocation}
-            className="px-4 py-2 rounded-xl gradient-hot text-white text-xs font-bold shrink-0"
+            className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center hover:bg-primary/10 transition-colors"
+            title="Cập nhật vị trí"
           >
-            Cho phép
+            <Locate className="w-5 h-5 text-primary" />
           </button>
         </div>
+      </div>
+
+      {/* ═══════ MAP (plain Leaflet) ═══════ */}
+      {viewMode === "map" && (
+        <motion.div
+          animate={
+            locationJustGranted
+              ? { scale: [1, 1.01, 1], opacity: [0.8, 1] }
+              : {}
+          }
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <LeafletMap
+            center={[myLat, myLng]}
+            users={allUsers}
+            onLocate={requestLocation}
+            onMapClick={(lat, lng) => {
+              console.log("📍 Manual location set:", lat, lng);
+              handleLocationSuccess(lat, lng);
+            }}
+          />
+        </motion.div>
       )}
+
+      {/* Location permission banner */}
+      <AnimatePresence>
+        {!locationGranted && (
+          <motion.div
+            initial={{ opacity: 1, height: "auto" }}
+            exit={{
+              opacity: 0,
+              height: 0,
+              marginTop: 0,
+              marginBottom: 0,
+              paddingTop: 0,
+              paddingBottom: 0,
+              overflow: "hidden",
+            }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/10">
+              <Navigation className="w-5 h-5 text-primary shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold">
+                  Bật vị trí để tìm bạn gần bạn
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Cho phép truy cập vị trí để xem khoảng cách
+                </p>
+              </div>
+              <button
+                onClick={requestLocation}
+                disabled={locationLoading}
+                className="px-4 py-2 rounded-xl gradient-hot text-white text-xs font-bold shrink-0 disabled:opacity-70 flex items-center gap-2"
+              >
+                {locationLoading ? (
+                  <>
+                    <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Đang lấy...
+                  </>
+                ) : (
+                  "Cho phép"
+                )}
+              </button>
+            </div>
+
+            {/* Location denied warning */}
+            {locationDenied && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200"
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                  <Navigation className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    ⚠️ Không thể lấy vị trí
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                    Trình duyệt đã chặn quyền truy cập vị trí. Để bật lại:
+                  </p>
+                  <ol className="text-xs text-amber-700 mt-2 space-y-1 list-decimal list-inside">
+                    <li>
+                      Nhấn vào biểu tượng <strong>🔒 ổ khóa</strong> trên thanh
+                      địa chỉ
+                    </li>
+                    <li>
+                      Tìm <strong>"Vị trí"</strong> hoặc{" "}
+                      <strong>"Location"</strong>
+                    </li>
+                    <li>
+                      Chọn <strong>"Cho phép"</strong> rồi tải lại trang
+                    </li>
+                  </ol>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-3 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors"
+                  >
+                    🔄 Tải lại trang
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Location granted success toast */}
+      <AnimatePresence>
+        {locationJustGranted && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="flex items-center gap-3 p-4 rounded-2xl bg-green-50 border border-green-200"
+          >
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+              <MapPin className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-green-800">
+                📍 Đã lấy vị trí thành công!
+              </p>
+              <p className="text-xs text-green-600">
+                Đang hiển thị bạn bè gần bạn nhất
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search & Filter */}
       <div className="flex gap-2 sticky top-16 z-30 bg-background/80 backdrop-blur-xl p-1 -m-1">
@@ -578,11 +942,12 @@ const Explore = () => {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="space-y-4 p-5 rounded-[2rem] bg-card border border-border/5 shadow-soft mb-2">
+            <div className="space-y-5 p-5 rounded-[2rem] bg-card border border-border/5 shadow-soft mb-2">
+              {/* Gender filter */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-1">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
-                    Bộ lọc giới tính
+                    Giới tính
                   </p>
                   {filterGender !== "all" && (
                     <button
@@ -611,10 +976,84 @@ const Explore = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Distance slider */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-1">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
-                    Sở thích phổ biến
+                    Khoảng cách
+                  </p>
+                  <span className="text-[11px] font-bold text-primary">
+                    {filterDistance >= 100
+                      ? "Không giới hạn"
+                      : `${filterDistance} km`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={filterDistance}
+                  onChange={(e) => setFilterDistance(Number(e.target.value))}
+                  className="w-full h-2 bg-muted/60 rounded-full appearance-none cursor-pointer accent-primary"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground font-bold px-1">
+                  <span>5 km</span>
+                  <span>50 km</span>
+                  <span>100 km</span>
+                </div>
+              </div>
+
+              {/* Age range */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+                    Độ tuổi
+                  </p>
+                  <span className="text-[11px] font-bold text-primary">
+                    {filterAgeMin} – {filterAgeMax} tuổi
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={18}
+                    max={35}
+                    value={filterAgeMin}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setFilterAgeMin(Math.min(v, filterAgeMax - 1));
+                    }}
+                    className="flex-1 h-2 bg-muted/60 rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                  <span className="text-[10px] font-bold text-muted-foreground w-4 text-center">
+                    —
+                  </span>
+                  <input
+                    type="range"
+                    min={18}
+                    max={35}
+                    value={filterAgeMax}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setFilterAgeMax(Math.max(v, filterAgeMin + 1));
+                    }}
+                    className="flex-1 h-2 bg-muted/60 rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground font-bold px-1">
+                  <span>18</span>
+                  <span>25</span>
+                  <span>35</span>
+                </div>
+              </div>
+
+              {/* Interest tags */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+                    Sở thích
                   </p>
                   {filterTags.length > 0 && (
                     <button
@@ -637,6 +1076,20 @@ const Explore = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Reset all */}
+              <button
+                onClick={() => {
+                  setFilterGender("all");
+                  setFilterTags([]);
+                  setFilterDistance(100);
+                  setFilterAgeMin(18);
+                  setFilterAgeMax(35);
+                }}
+                className="w-full py-3 rounded-xl text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground border border-border/10 hover:bg-muted/40 transition-all"
+              >
+                ✕ Đặt lại tất cả
+              </button>
             </div>
           </motion.div>
         )}
@@ -671,7 +1124,7 @@ const Explore = () => {
         </div>
       )}
 
-      {/* User Grid */}
+      {/* User List / Grid */}
       {loading ? (
         <div className="grid grid-cols-2 gap-4 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
@@ -696,6 +1149,9 @@ const Explore = () => {
               setSearch("");
               setFilterGender("all");
               setFilterTags([]);
+              setFilterDistance(100);
+              setFilterAgeMin(18);
+              setFilterAgeMax(35);
             }}
             variant="outline"
             className="rounded-full px-8 py-5 h-auto font-bold"
@@ -703,7 +1159,100 @@ const Explore = () => {
             Đặt lại bộ lọc
           </Button>
         </div>
+      ) : viewMode === "list" ? (
+        /* ═══ LIST VIEW ═══ */
+        <div className="space-y-3">
+          {allUsers.map((u, i) => {
+            const avatarUrl =
+              u.avatar_url ||
+              `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.id}&backgroundColor=ffd5dc`;
+            const commonInterests = myProfile
+              ? u.interests?.filter((x) => myProfile.interests?.includes(x)) ||
+                []
+              : [];
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                key={u.id}
+                onClick={() => navigate(`/user-profile?id=${u.id}`)}
+                className="flex items-center gap-4 p-4 rounded-3xl bg-card border border-border/5 shadow-soft hover:shadow-card transition-all cursor-pointer group"
+              >
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div className="w-16 h-16 rounded-[1.5rem] overflow-hidden shadow-card border-2 border-transparent group-hover:border-primary/30 transition-colors">
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover bg-primary/5"
+                    />
+                  </div>
+                  {u.is_online && (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-base tracking-tight truncate">
+                      {u.name}
+                      {u.age ? `, ${u.age}` : ""}
+                    </h3>
+                    {u.is_verified && (
+                      <Verified className="w-3.5 h-3.5 text-blue-500 fill-white shrink-0" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {u.city && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {u.city}
+                      </span>
+                    )}
+                    {u.distance !== undefined && (
+                      <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                        {formatDist(u.distance)}
+                      </span>
+                    )}
+                  </div>
+                  {/* Interests */}
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {u.interests?.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${commonInterests.includes(tag) ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {commonInterests.length > 0 && (
+                      <span className="text-[9px] font-bold text-primary">
+                        ❤️ {commonInterests.length} chung
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/messages?chat=${u.id}`);
+                    }}
+                    className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
       ) : (
+        /* ═══ GRID VIEW ═══ */
         <div className="grid grid-cols-2 gap-4">
           {allUsers.map((u, i) => {
             const avatarUrl =
@@ -720,7 +1269,7 @@ const Explore = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.05 }}
                 key={u.id}
-                onClick={() => (window.location.href = `/swipe?user=${u.id}`)}
+                onClick={() => navigate(`/user-profile?id=${u.id}`)}
                 className="group relative rounded-[2.5rem] overflow-hidden bg-card border border-border/5 shadow-romantic hover:shadow-elevated transition-all cursor-pointer"
               >
                 <div className="relative aspect-[3/4.2]">
@@ -759,7 +1308,7 @@ const Explore = () => {
                         {u.age && `, ${u.age}`}
                       </h3>
                       {u.is_verified && (
-                        <Verified className="w-3.5 h-3.5 text-superblue-400 fill-white shrink-0" />
+                        <Verified className="w-3.5 h-3.5 text-blue-400 fill-white shrink-0" />
                       )}
                     </div>
                     {u.city && (
@@ -784,7 +1333,7 @@ const Explore = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.location.href = `/messages`;
+                        navigate(`/messages?chat=${u.id}`);
                       }}
                       className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 hover:bg-white/30 transition-colors"
                     >

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Heart,
   MessageCircle,
@@ -141,10 +142,15 @@ const howItWorks = [
 /* ──────────────────────── LANDING ──────────────────────── */
 const Landing = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const [mobileMenu, setMobileMenu] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  const avatarUrl =
+    profile?.avatar_url ||
+    `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.id || "default"}&backgroundColor=ffd5dc`;
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -245,21 +251,36 @@ const Landing = () => {
             })}
           </nav>
 
-          {/* Auth buttons */}
+          {/* Auth buttons / User avatar */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              to="/login"
-              className="text-sm font-semibold text-foreground hover:text-primary transition-colors px-4 py-2"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              to="/login"
-              className="gradient-hot text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-card hover:shadow-glow transition-all active:scale-[0.97] flex items-center gap-1.5"
-            >
-              Bắt đầu ngay
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            {user ? (
+              <Link
+                to="/profile"
+                className="w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-primary/20 transition-all"
+              >
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover bg-primary/5"
+                />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors px-4 py-2"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/login"
+                  className="gradient-hot text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-card hover:shadow-glow transition-all active:scale-[0.97] flex items-center gap-1.5"
+                >
+                  Bắt đầu ngay
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu toggle */}
@@ -294,12 +315,32 @@ const Landing = () => {
               </Link>
             ))}
             <div className="pt-2 space-y-2">
-              <Link
-                to="/login"
-                className="block w-full gradient-hot text-white text-center text-sm font-semibold px-6 py-3 rounded-2xl shadow-card"
-              >
-                Bắt đầu ngay
-              </Link>
+              {user ? (
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenu(false)}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl bg-card border border-border/30"
+                >
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover bg-primary/5 border-2 border-primary/20"
+                  />
+                  <div>
+                    <p className="text-sm font-bold">
+                      {profile?.name || "Hồ sơ"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Xem hồ sơ</p>
+                  </div>
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="block w-full gradient-hot text-white text-center text-sm font-semibold px-6 py-3 rounded-2xl shadow-card"
+                >
+                  Bắt đầu ngay
+                </Link>
+              )}
             </div>
           </div>
         )}

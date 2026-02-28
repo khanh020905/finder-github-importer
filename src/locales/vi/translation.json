@@ -1,0 +1,38 @@
+{
+  "navigation": {
+    "home": "Trang chủ",
+    "explore": "Khám phá",
+    "matches": "Ghép đôi",
+    "messages": "Tin nhắn",
+    "profile": "Hồ sơ"
+  },
+  "explore": {
+    "title": "Tìm bạn đồng hành",
+    "subtitle": "Kết nối cùng sinh viên quanh bạn",
+    "search_placeholder": "Tìm kiếm sinh viên...",
+    "views": {
+      "map": "Bản đồ",
+      "grid": "Lưới",
+      "list": "Danh sách"
+    },
+    "filters": {
+      "title": "Bộ lọc",
+      "clear": "Xóa lọc",
+      "apply": "Áp dụng",
+      "distance": "Khoảng cách",
+      "age": "Độ tuổi",
+      "gender": "Giới tính",
+      "interests": "Sở thích",
+      "all": "Tất cả",
+      "male": "Nam",
+      "female": "Nữ",
+      "other": "Khác"
+    },
+    "card": {
+      "view_profile": "Xem hồ sơ",
+      "message": "Nhắn tin",
+      "match_percent": "Độ tương hợp",
+      "common_interests": "sở thích chung"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   ReactNode,
 } from "react";
 import { Session, User } from "@supabase/supabase-js";
@@ -55,52 +56,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    setProfile(data);
-  };
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data) {
+        setProfile(data);
+        return data;
+      }
+      // Profile doesn't exist yet, create it
+      const { data: newProfile } = await supabase
+        .from("profiles")
+        .insert({ id: userId })
+        .select()
+        .single();
+      if (newProfile) {
+        setProfile(newProfile);
+        return newProfile;
+      }
+    } catch (err) {
+      console.error("fetchProfile error:", err);
+    }
+    return null;
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) await fetchProfile(user.id);
-  };
+  }, [user, fetchProfile]);
 
   useEffect(() => {
-    // Safety timeout — never stay loading forever
-    const timeout = setTimeout(() => {
-      setLoading((prev) => {
-        if (prev) console.warn("Auth loading timed out — forcing ready state");
-        return false;
-      });
-    }, 5000);
+    let mounted = true;
 
-    // Get initial session
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
+    // Get initial session — set loading false ASAP
+    const init = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
+        // Set loading false IMMEDIATELY — don't wait for profile
+        setLoading(false);
+        // Fetch profile in background (non-blocking)
         if (session?.user) {
-          ensureProfile(session.user.id);
+          fetchProfile(session.user.id);
         }
-        setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to get session:", err);
-        setLoading(false);
-      });
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await ensureProfile(session.user.id);
+        fetchProfile(session.user.id);
       } else {
         setProfile(null);
       }
@@ -108,10 +129,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => {
-      clearTimeout(timeout);
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   // Update online status
   useEffect(() => {
@@ -128,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .update({ last_active: new Date().toISOString() })
         .eq("id", user.id)
         .then();
-    }, 60000); // every minute
+    }, 60000);
 
     const handleBeforeUnload = () => {
       supabase.from("profiles").update({ is_online: false }).eq("id", user.id);
@@ -142,31 +163,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [user]);
 
-  const ensureProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-    if (data) {
-      setProfile(data);
-    } else {
-      // Profile doesn't exist yet, create it
-      const { data: newProfile, error } = await supabase
-        .from("profiles")
-        .insert({ id: userId })
-        .select()
-        .single();
-      if (!error && newProfile) {
-        setProfile(newProfile);
-      }
-    }
-  };
-
   const signUp = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
-      // Create profile row manually (no trigger needed)
       await supabase.from("profiles").insert({ id: data.user.id }).single();
     }
     return { error: error as Error | null };

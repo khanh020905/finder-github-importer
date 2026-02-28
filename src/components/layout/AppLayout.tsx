@@ -2,9 +2,12 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Heart, Compass, MessageCircle, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useState, useEffect } from "react";
 
 const nav = [
-  { to: "/swipe", label: "Trang chủ" },
+  { to: "/", label: "Trang chủ" },
   { to: "/explore", label: "Khám phá" },
   { to: "/matches", label: "Ghép đôi" },
   { to: "/messages", label: "Tin nhắn" },
@@ -13,9 +16,124 @@ const nav = [
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const loc = useLocation();
   const { user, profile } = useAuth();
+  const { toast } = useToast();
+  const [unreadMatches, setUnreadMatches] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   const avatarUrl =
     profile?.avatar_url ||
     `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.id || "default"}&backgroundColor=ffd5dc`;
+
+  // Realtime listener for new matches and messages
+  useEffect(() => {
+    if (!user) return;
+
+    // Fetch initial unread counts
+    const fetchCounts = async () => {
+      // Unread messages
+      const { count: msgCount } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("seen", false)
+        .neq("sender_id", user.id);
+
+      if (msgCount !== null) setUnreadMessages(msgCount);
+    };
+
+    fetchCounts();
+
+    const matchesChannel = supabase
+      .channel("new_matches")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "matches",
+          filter: `user2=eq.${user.id}`, // the user who got matched
+        },
+        async (payload) => {
+          // Fetch the other user's profile
+          const { data: partner } = await supabase
+            .from("profiles")
+            .select("name, avatar_url")
+            .eq("id", payload.new.user1)
+            .single();
+
+          if (partner) {
+            toast({
+              title: "🎉 Tương hợp mới!",
+              description: `Bạn và ${partner.name} đã tương hợp. Gửi tin nhắn ngay!`,
+              className: "bg-primary text-primary-foreground border-none",
+            });
+            setUnreadMatches((prev) => prev + 1);
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "matches", // listen to both sides just in case
+          filter: `user1=eq.${user.id}`,
+        },
+        async (payload) => {
+          const { data: partner } = await supabase
+            .from("profiles")
+            .select("name")
+            .eq("id", payload.new.user2)
+            .single();
+
+          if (partner) {
+            toast({
+              title: "🎉 Tương hợp mới!",
+              description: `Bạn và ${partner.name} đã tương hợp.`,
+              className: "bg-primary text-primary-foreground border-none",
+            });
+            setUnreadMatches((prev) => prev + 1);
+          }
+        },
+      )
+      .subscribe();
+
+    const messagesChannel = supabase
+      .channel("new_messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          if (payload.new.sender_id !== user.id) {
+            setUnreadMessages((prev) => prev + 1);
+            if (loc.pathname !== "/messages") {
+              toast({
+                title: "💬 Tin nhắn mới",
+                description: "Bạn có tin nhắn mới.",
+              });
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(matchesChannel);
+      supabase.removeChannel(messagesChannel);
+    };
+  }, [user, loc.pathname, toast]);
+
+  // Reset unread count when visiting the page
+  useEffect(() => {
+    if (loc.pathname === "/matches") {
+      setUnreadMatches(0);
+    } else if (loc.pathname === "/messages") {
+      setUnreadMessages(0);
+    }
+  }, [loc.pathname]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,6 +161,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
               if (item.to === "/explore") {
                 const isExploreActive = [
                   "/explore",
+                  "/swipe",
                   "/events",
                   "/study-groups",
                 ].includes(loc.pathname);
@@ -84,6 +203,16 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                           Tìm bạn đồng hành
                         </Link>
                         <Link
+                          to="/swipe"
+                          className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary ${
+                            loc.pathname === "/swipe"
+                              ? "text-primary bg-primary/5"
+                              : "text-foreground"
+                          }`}
+                        >
+                          Quẹt ghép đôi
+                        </Link>
+                        <Link
                           to="/events"
                           className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary ${
                             loc.pathname === "/events"
@@ -113,13 +242,23 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
+                  className={`text-sm font-medium transition-colors hover:text-primary relative ${
                     active
                       ? "text-primary font-semibold"
                       : "text-muted-foreground"
                   }`}
                 >
                   {item.label}
+                  {item.to === "/matches" && unreadMatches > 0 && (
+                    <span className="absolute -top-1 -right-4 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                      {unreadMatches}
+                    </span>
+                  )}
+                  {item.to === "/messages" && unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-4 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                      {unreadMessages}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -152,7 +291,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       <nav className="fixed bottom-0 left-0 right-0 z-40 glass-heavy border-t border-border/30 md:hidden">
         <div className="flex justify-around py-1.5 safe-area-bottom">
           {[
-            { to: "/swipe", icon: Heart, label: "Trang chủ" },
+            { to: "/", icon: Heart, label: "Trang chủ" },
             { to: "/explore", icon: Compass, label: "Khám phá" },
             { to: "/matches", icon: Sparkles, label: "Ghép đôi" },
             { to: "/messages", icon: MessageCircle, label: "Tin nhắn" },
@@ -173,6 +312,12 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                   />
                   {active && (
                     <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full gradient-hot" />
+                  )}
+                  {item.to === "/matches" && unreadMatches > 0 && (
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                  )}
+                  {item.to === "/messages" && unreadMessages > 0 && (
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
                   )}
                 </div>
                 <span className="text-[10px] font-semibold">{item.label}</span>
