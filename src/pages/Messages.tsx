@@ -725,19 +725,29 @@ const Messages = () => {
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
+        // Use signed URL (works even if bucket is private)
+        const { data: signedData, error: signErr } = await supabase.storage
           .from("avatars")
-          .getPublicUrl(filePath);
+          .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10); // 10 year expiry
+
+        if (signErr || !signedData?.signedUrl) {
+          throw signErr || new Error("Không thể tạo URL ảnh");
+        }
 
         await supabase.from("messages").insert({
           match_id: matchId,
           sender_id: user.id,
-          content: urlData.publicUrl,
+          content: signedData.signedUrl,
           type: "image",
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Upload error:", err);
+      toast({
+        title: "❌ Lỗi gửi ảnh",
+        description: err?.message || "Không thể tải ảnh lên",
+        variant: "destructive",
+      });
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1081,7 +1091,12 @@ const Messages = () => {
                         <img
                           src={msg.content}
                           alt="Chat image"
-                          className="rounded-xl w-full max-w-[200px] object-cover"
+                          className="rounded-xl w-full max-w-[200px] min-h-[120px] object-cover bg-muted/20"
+                          loading="eager"
+                          onLoad={(e) => {
+                            (e.target as HTMLImageElement).style.minHeight =
+                              "auto";
+                          }}
                           onError={(e) => {
                             (e.target as HTMLImageElement).src =
                               "https://via.placeholder.com/200?text=Lỗi+tải+ảnh";
