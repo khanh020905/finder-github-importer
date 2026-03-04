@@ -689,8 +689,32 @@ const Messages = () => {
           setLocalMessages(withAi);
           saveLocalChat(user.id, activePartner.id, withAi);
         }, 1500);
-      } else if (activeMatchId) {
-        // Upload to Supabase avatars bucket
+      } else if (activePartner) {
+        // Ensure we have a match_id
+        let matchId = activeMatchId;
+        if (!matchId) {
+          const { data: existingMatch } = await supabase
+            .from("matches")
+            .select("id")
+            .or(
+              `and(user1.eq.${user.id},user2.eq.${activePartner.id}),and(user1.eq.${activePartner.id},user2.eq.${user.id})`,
+            )
+            .maybeSingle();
+          if (existingMatch) {
+            matchId = existingMatch.id;
+          } else {
+            const { data: newMatch } = await supabase
+              .from("matches")
+              .insert({ user1: user.id, user2: activePartner.id })
+              .select("id")
+              .single();
+            if (newMatch) matchId = newMatch.id;
+          }
+          if (matchId) setActiveMatchId(matchId);
+        }
+        if (!matchId) throw new Error("Không thể tạo cuộc trò chuyện");
+
+        // Upload to Supabase storage
         const fileExt = file.name.split(".").pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         const filePath = `chat_images/${fileName}`;
@@ -706,7 +730,7 @@ const Messages = () => {
           .getPublicUrl(filePath);
 
         await supabase.from("messages").insert({
-          match_id: activeMatchId,
+          match_id: matchId,
           sender_id: user.id,
           content: urlData.publicUrl,
           type: "image",
