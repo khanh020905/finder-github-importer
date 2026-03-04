@@ -28,7 +28,7 @@ import {
   Trophy,
   Zap,
 } from "lucide-react";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabase";
@@ -89,6 +89,24 @@ const Profile = () => {
   const [editCity, setEditCity] = useState(profile?.city || "");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Real stats from DB
+  const [realStats, setRealStats] = useState({ matches: 0, likes: 0 });
+  useEffect(() => {
+    if (!user) return;
+    const fetchStats = async () => {
+      const { count: matchCount } = await supabase
+        .from("matches")
+        .select("*", { count: "exact", head: true })
+        .or(`user1.eq.${user.id},user2.eq.${user.id}`);
+      const { count: likeCount } = await supabase
+        .from("likes")
+        .select("*", { count: "exact", head: true })
+        .eq("to_user", user.id);
+      setRealStats({ matches: matchCount || 0, likes: likeCount || 0 });
+    };
+    fetchStats();
+  }, [user]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,6 +192,14 @@ const Profile = () => {
 
   const saveProfile = async () => {
     if (!user) return;
+    if (!editName.trim()) {
+      toast({
+        title: "⚠️ Tên không được để trống",
+        description: "Vui lòng nhập tên hiển thị của bạn.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
@@ -272,11 +298,24 @@ const Profile = () => {
           </div>
           <div className="text-center">
             <h2 className="text-2xl font-black italic font-serif-display items-center justify-center flex gap-1.5">
-              {displayProfile.name}
+              {displayProfile.name ||
+                user?.email?.split("@")[0] ||
+                "Chưa đặt tên"}
               {displayProfile.age && `, ${displayProfile.age}`}
             </h2>
+            {!displayProfile.name && (
+              <p className="text-xs text-primary font-bold mt-1 animate-pulse">
+                ⚠️ Hãy cập nhật tên của bạn để hiển thị trên Khám phá
+              </p>
+            )}
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">
-              {displayProfile.city || "Student"} • UI Developer
+              {[
+                displayProfile.university,
+                displayProfile.occupation,
+                displayProfile.city,
+              ]
+                .filter(Boolean)
+                .join(" • ") || "Chưa cập nhật thông tin"}
             </p>
           </div>
         </div>
@@ -303,17 +342,20 @@ const Profile = () => {
         {[
           {
             label: "Matches",
-            value: "24",
+            value: realStats.matches.toString(),
             icon: Target,
             color: "text-red-500",
           },
           {
             label: "Likes",
-            value: "1.2k",
+            value:
+              realStats.likes > 999
+                ? `${(realStats.likes / 1000).toFixed(1)}k`
+                : realStats.likes.toString(),
             icon: Heart,
             color: "text-pink-500",
           },
-          { label: "Views", value: "450", icon: Eye, color: "text-purple-500" },
+          { label: "Views", value: "—", icon: Eye, color: "text-purple-500" },
         ].map((stat) => (
           <div
             key={stat.label}

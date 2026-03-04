@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -15,10 +15,71 @@ import {
   Calendar,
   Globe,
   Star,
+  Send,
 } from "lucide-react";
 import { useAuth, Profile } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import { containsBannedWord } from "@/lib/banned-words";
+
+// ========== REVIEWS TYPES ==========
+interface Review {
+  id: string;
+  from_user: string;
+  to_user: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+  reviewer?: { name: string; avatar_url: string };
+}
+
+// Mock reviews for demo users
+const mockReviews: Record<string, Review[]> = {
+  "mock-1": [
+    {
+      id: "r1",
+      from_user: "system",
+      to_user: "mock-1",
+      rating: 5,
+      comment: "Người rất thân thiện và vui vẻ! 😊",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      reviewer: {
+        name: "Minh Tuấn",
+        avatar_url:
+          "https://api.dicebear.com/7.x/lorelei/svg?seed=minhtuan&backgroundColor=c0aede",
+      },
+    },
+    {
+      id: "r2",
+      from_user: "system",
+      to_user: "mock-1",
+      rating: 4,
+      comment: "Nói chuyện thú vị lắm",
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+      reviewer: {
+        name: "Thu Hà",
+        avatar_url:
+          "https://api.dicebear.com/7.x/lorelei/svg?seed=thuha&backgroundColor=ffd5dc",
+      },
+    },
+  ],
+  "mock-2": [
+    {
+      id: "r3",
+      from_user: "system",
+      to_user: "mock-2",
+      rating: 5,
+      comment: "Dev giỏi, tâm huyết 💻",
+      created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+      reviewer: {
+        name: "Ngọc Trinh",
+        avatar_url:
+          "https://api.dicebear.com/7.x/lorelei/svg?seed=ngoctrinh&backgroundColor=ffd5dc",
+      },
+    },
+  ],
+};
 
 // ========== MOCK USERS (same as Explore) ==========
 const mockUsers: (Profile & { distance?: number })[] = [
@@ -380,11 +441,21 @@ const UserProfile = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, profile: myProfile } = useAuth();
+  const { toast } = useToast();
   const [dbUser, setDbUser] = useState<
     (Profile & { distance?: number }) | null
   >(null);
   const [dbLoading, setDbLoading] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
+
+  // Reviews state
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [avgRating, setAvgRating] = useState<number>(0);
+  const [myReviewRating, setMyReviewRating] = useState(0);
+  const [myReviewComment, setMyReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   const userId = searchParams.get("id");
   const myLat = myProfile?.lat || 10.8231;
@@ -408,12 +479,13 @@ const UserProfile = () => {
   useEffect(() => {
     if (!userId || mockUser) return;
     setDbLoading(true);
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single()
-      .then(({ data }) => {
+    const fetchProfile = async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
         if (data) {
           setDbUser({
             ...data,
@@ -423,9 +495,12 @@ const UserProfile = () => {
                 : undefined,
           });
         }
-        setDbLoading(false);
-      })
-      .catch(() => setDbLoading(false));
+      } catch {
+        // ignore
+      }
+      setDbLoading(false);
+    };
+    fetchProfile();
   }, [userId, mockUser, myLat, myLng]);
 
   // Use mock user instantly, or DB user after fetch
@@ -435,6 +510,201 @@ const UserProfile = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  // ========== CHECK IF ALREADY LIKED (persistent) ==========
+  useEffect(() => {
+    if (!user || !userId) return;
+    supabase
+      .from("likes")
+      .select("id")
+      .eq("from_user", user.id)
+      .eq("to_user", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setLiked(true);
+      });
+  }, [user, userId]);
+
+  // ========== HANDLE LIKE/UNLIKE ==========
+  const handleLikeToggle = useCallback(async () => {
+    if (!user || !userId || likeLoading) return;
+    setLikeLoading(true);
+
+    if (liked) {
+      // Unlike
+      await supabase
+        .from("likes")
+        .delete()
+        .eq("from_user", user.id)
+        .eq("to_user", userId);
+      setLiked(false);
+      toast({ title: "Đã bỏ thích" });
+    } else {
+      // Like
+      const { error } = await supabase.from("likes").insert({
+        from_user: user.id,
+        to_user: userId,
+      });
+      if (!error) {
+        setLiked(true);
+        toast({
+          title: "❤️ Đã thích!",
+          description: `Bạn đã thích ${profileUser?.name || "người này"}`,
+        });
+
+        // Check if match was created
+        const { data: matchData } = await supabase
+          .from("matches")
+          .select("id")
+          .or(
+            `and(user1.eq.${user.id},user2.eq.${userId}),and(user1.eq.${userId},user2.eq.${user.id})`,
+          )
+          .maybeSingle();
+        if (matchData) {
+          toast({
+            title: "🎉 It's a Match!",
+            description: `Bạn và ${profileUser?.name} đã tương hợp!`,
+          });
+        }
+      }
+    }
+    setLikeLoading(false);
+  }, [user, userId, liked, likeLoading, profileUser?.name, toast]);
+
+  // ========== FETCH REVIEWS ==========
+  useEffect(() => {
+    if (!userId) return;
+
+    if (userId.startsWith("mock-")) {
+      const mr = mockReviews[userId] || [];
+      setReviews(mr);
+      if (mr.length > 0) {
+        setAvgRating(mr.reduce((acc, r) => acc + r.rating, 0) / mr.length);
+      }
+      return;
+    }
+
+    // Fetch real reviews
+    const fetchReviews = async () => {
+      const { data } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("to_user", userId)
+        .order("created_at", { ascending: false });
+
+      if (data && data.length > 0) {
+        // Fetch reviewer profiles
+        const reviewerIds = data.map((r: any) => r.from_user);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, name, avatar_url")
+          .in("id", reviewerIds);
+        const pMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+        const enriched: Review[] = data.map((r: any) => ({
+          ...r,
+          reviewer: pMap.get(r.from_user) || {
+            name: "Ẩn danh",
+            avatar_url: "",
+          },
+        }));
+        setReviews(enriched);
+        setAvgRating(
+          enriched.reduce((acc, r) => acc + r.rating, 0) / enriched.length,
+        );
+
+        // Check if current user already reviewed
+        if (user) {
+          const existing = enriched.find((r) => r.from_user === user.id);
+          if (existing) {
+            setHasReviewed(true);
+            setMyReviewRating(existing.rating);
+            setMyReviewComment(existing.comment);
+          }
+        }
+      }
+    };
+    fetchReviews();
+  }, [userId, user]);
+
+  // ========== SUBMIT REVIEW ==========
+  const submitReview = async () => {
+    if (!user || !userId || myReviewRating === 0 || reviewSubmitting) return;
+    if (userId.startsWith("mock-")) {
+      toast({
+        title: "Demo",
+        description: "Không thể đánh giá người dùng demo",
+      });
+      return;
+    }
+    if (userId === user.id) {
+      toast({
+        title: "Lỗi",
+        description: "Không thể tự đánh giá",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check banned words
+    const banned = containsBannedWord(myReviewComment);
+    if (banned) {
+      toast({
+        title: "⚠️ Nội dung không phù hợp",
+        description: `Vui lòng không sử dụng từ ngữ không phù hợp`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setReviewSubmitting(true);
+    const { error } = await supabase.from("reviews").upsert(
+      {
+        from_user: user.id,
+        to_user: userId,
+        rating: myReviewRating,
+        comment: myReviewComment,
+      },
+      { onConflict: "from_user,to_user" },
+    );
+
+    if (!error) {
+      toast({ title: "✅ Đã gửi đánh giá!", description: "Cảm ơn bạn" });
+      setHasReviewed(true);
+      // Refresh reviews
+      const { data } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("to_user", userId)
+        .order("created_at", { ascending: false });
+      if (data) {
+        const reviewerIds = data.map((r: any) => r.from_user);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, name, avatar_url")
+          .in("id", reviewerIds);
+        const pMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+        const enriched: Review[] = data.map((r: any) => ({
+          ...r,
+          reviewer: pMap.get(r.from_user) || {
+            name: "Ẩn danh",
+            avatar_url: "",
+          },
+        }));
+        setReviews(enriched);
+        setAvgRating(
+          enriched.reduce((acc, r) => acc + r.rating, 0) / enriched.length,
+        );
+      }
+    } else {
+      toast({
+        title: "Lỗi",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+    setReviewSubmitting(false);
+  };
 
   // Only show loading for DB user fetches
   if (dbLoading && !profileUser) {
@@ -532,30 +802,6 @@ const UserProfile = () => {
 
       {/* ═══════ CONTENT ═══════ */}
       <div className="px-5 space-y-6 mt-6">
-        {/* Action buttons */}
-        <div className="flex gap-3">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setLiked(!liked)}
-            className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm transition-all border ${
-              liked
-                ? "gradient-hot text-white border-transparent shadow-glow"
-                : "bg-primary/5 text-primary border-primary/10 hover:bg-primary/10"
-            }`}
-          >
-            <Heart className={`w-5 h-5 ${liked ? "fill-white" : ""}`} />
-            {liked ? "Đã thích" : "Thích"}
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(`/messages?chat=${u.id}`)}
-            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm bg-card border border-border/10 text-foreground hover:bg-muted/50 transition-all shadow-soft"
-          >
-            <MessageCircle className="w-5 h-5" />
-            Nhắn tin
-          </motion.button>
-        </div>
-
         {/* Bio section */}
         {u.bio && (
           <motion.div
@@ -671,6 +917,131 @@ const UserProfile = () => {
           </motion.div>
         )}
 
+        {/* ═══════ REVIEWS SECTION ═══════ */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="p-5 rounded-[2rem] bg-card border border-border/5 shadow-soft"
+        >
+          <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+            <Star className="w-3.5 h-3.5" />
+            Đánh giá ({reviews.length})
+          </h3>
+
+          {/* Average rating */}
+          {reviews.length > 0 && (
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl bg-muted/30">
+              <span className="text-3xl font-black text-primary">
+                {avgRating.toFixed(1)}
+              </span>
+              <div>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      className={`w-4 h-4 ${s <= Math.round(avgRating) ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/20"}`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {reviews.length} đánh giá
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Review list */}
+          <div className="space-y-3 mb-4">
+            {reviews.slice(0, 5).map((rv) => (
+              <div
+                key={rv.id}
+                className="flex gap-3 p-3 rounded-2xl bg-muted/20"
+              >
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-primary/5">
+                  <img
+                    src={
+                      rv.reviewer?.avatar_url ||
+                      `https://api.dicebear.com/7.x/lorelei/svg?seed=${rv.from_user}`
+                    }
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold truncate">
+                      {rv.reviewer?.name || "Ẩn danh"}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`w-3 h-3 ${s <= rv.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/20"}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {rv.comment && (
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      {rv.comment}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground/50 mt-1">
+                    {new Date(rv.created_at).toLocaleDateString("vi-VN")}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {reviews.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Chưa có đánh giá nào
+              </p>
+            )}
+          </div>
+
+          {/* Write review form */}
+          {user && userId !== user.id && !userId?.startsWith("mock-") && (
+            <div className="border-t border-border/10 pt-4">
+              <h4 className="text-xs font-bold text-muted-foreground mb-3">
+                {hasReviewed ? "📝 Cập nhật đánh giá" : "✍️ Viết đánh giá"}
+              </h4>
+              <div className="flex gap-1 mb-3">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setMyReviewRating(s)}
+                    className="transition-transform hover:scale-110 active:scale-95"
+                  >
+                    <Star
+                      className={`w-7 h-7 ${s <= myReviewRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/20 hover:text-yellow-300"}`}
+                    />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={myReviewComment}
+                onChange={(e) => setMyReviewComment(e.target.value)}
+                placeholder="Chia sẻ trải nghiệm của bạn..."
+                rows={2}
+                className="w-full rounded-2xl bg-muted/30 border-0 px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                onClick={submitReview}
+                disabled={myReviewRating === 0 || reviewSubmitting}
+                className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-2xl gradient-hot text-white font-bold text-sm shadow-romantic transition-all active:scale-95 disabled:opacity-40"
+              >
+                <Send className="w-4 h-4" />
+                {reviewSubmitting
+                  ? "Đang gửi..."
+                  : hasReviewed
+                    ? "Cập nhật"
+                    : "Gửi đánh giá"}
+              </button>
+            </div>
+          )}
+        </motion.div>
+
         {/* Verification & Safety */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -728,12 +1099,13 @@ const UserProfile = () => {
         <div className="max-w-lg mx-auto flex gap-3">
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => setLiked(!liked)}
+            onClick={handleLikeToggle}
+            disabled={likeLoading}
             className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all ${
               liked
                 ? "gradient-hot text-white shadow-glow"
                 : "bg-primary/5 text-primary hover:bg-primary/10"
-            }`}
+            } ${likeLoading ? "opacity-50" : ""}`}
           >
             <Heart className={`w-5 h-5 ${liked ? "fill-white" : ""}`} />
             {liked ? "Đã thích ❤️" : "❤️ Thích"}

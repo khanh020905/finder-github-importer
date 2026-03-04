@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useState, useEffect } from "react";
+import { NotificationDropdown } from "@/components/NotificationDropdown";
 
 const nav = [
   { to: "/", label: "Trang chủ" },
@@ -264,21 +265,24 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
             })}
           </nav>
 
-          {/* Profile avatar */}
-          <Link
-            to="/profile"
-            className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all ${
-              loc.pathname === "/profile"
-                ? "border-primary shadow-glow"
-                : "border-transparent hover:border-primary/20"
-            }`}
-          >
-            <img
-              src={avatarUrl}
-              alt=""
-              className="w-full h-full object-cover bg-primary/5"
-            />
-          </Link>
+          {/* Notification bell + Profile avatar */}
+          <div className="flex items-center gap-2">
+            <NotificationDropdown />
+            <Link
+              to="/profile"
+              className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all ${
+                loc.pathname === "/profile"
+                  ? "border-primary shadow-glow"
+                  : "border-transparent hover:border-primary/20"
+              }`}
+            >
+              <img
+                src={avatarUrl}
+                alt=""
+                className="w-full h-full object-cover bg-primary/5"
+              />
+            </Link>
+          </div>
         </div>
       </header>
 

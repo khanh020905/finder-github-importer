@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useToast } from "@/hooks/use-toast";
 
 // Fix Leaflet default icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -548,6 +549,7 @@ function LeafletMap({
 const Explore = () => {
   const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [dbUsers, setDbUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -558,8 +560,8 @@ const Explore = () => {
   const [filterAgeMin, setFilterAgeMin] = useState<number>(18);
   const [filterAgeMax, setFilterAgeMax] = useState<number>(35);
   const [viewMode, setViewMode] = useState<"map" | "grid" | "list">("map");
-  const [myLat, setMyLat] = useState<number>(10.8416);
-  const [myLng, setMyLng] = useState<number>(106.8098);
+  const [myLat, setMyLat] = useState<number>(myProfile?.lat || 10.8416);
+  const [myLng, setMyLng] = useState<number>(myProfile?.lng || 106.8098);
   const [locationGranted, setLocationGranted] = useState(false);
   const [locationJustGranted, setLocationJustGranted] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
@@ -654,10 +656,21 @@ const Explore = () => {
                 myProfile.lng,
               );
               handleLocationSuccess(myProfile.lat, myProfile.lng);
+              toast({
+                title: "📍 Sử dụng vị trí đã lưu",
+                description:
+                  "Không thể lấy vị trí hiện tại. Đang sử dụng vị trí đã lưu của bạn.",
+              });
             } else {
               console.log("📍 Using default HCM City location");
               handleLocationSuccess(10.8231, 106.6297);
               setLocationDenied(true);
+              toast({
+                title: "⚠️ Không thể xác định vị trí",
+                description:
+                  "Vui lòng cho phép truy cập vị trí hoặc chạm vào bản đồ để chọn vị trí.",
+                variant: "destructive",
+              });
             }
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
@@ -691,8 +704,8 @@ const Explore = () => {
         }
         const { data } = await query
           .order("last_active", { ascending: false })
-          .limit(50);
-        setDbUsers((data || []).filter((p) => p.name));
+          .limit(100);
+        setDbUsers((data || []).filter((p) => p.name && p.name.trim() !== ""));
       } catch (e) {
         console.warn("Failed to fetch users:", e);
       }

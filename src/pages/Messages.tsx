@@ -22,6 +22,9 @@ import EmojiPicker from "emoji-picker-react";
 import { useAuth, Profile } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
+import { containsBannedWord } from "@/lib/banned-words";
+import { useToast } from "@/hooks/use-toast";
+import { calculateStreak, StreakInfo } from "@/lib/streak";
 
 // ========== GROQ API ==========
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
@@ -420,6 +423,7 @@ function saveLocalChat(
 const Messages = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // DB-based conversations
@@ -457,22 +461,72 @@ const Messages = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Fire streak state
+  const [streak, setStreak] = useState<StreakInfo>({
+    days: 0,
+    active: false,
+    expiring: false,
+    label: "",
+    emoji: "",
+  });
+  const [conversationStreaks, setConversationStreaks] = useState<
+    Map<string, StreakInfo>
+  >(new Map());
 
   const isMockChat = activePartner?.id.startsWith("mock-");
 
-  // Open chat from URL query ?chat=mock-dn-1
+  // Open chat from URL query ?chat=userId
   useEffect(() => {
     const chatId = searchParams.get("chat");
     if (chatId && !activePartner) {
+      // Try mock user first
       const mock = mockUsers.find((u) => u.id === chatId);
       if (mock) {
         setActivePartner(mock);
         if (user) {
           setLocalMessages(loadLocalChat(user.id, mock.id));
         }
+      } else if (user) {
+        // Real DB user: fetch profile + find match
+        const fetchRealUser = async () => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", chatId)
+            .maybeSingle();
+          if (profile) {
+            setActivePartner(profile as Profile);
+            // Find existing match between me and this user
+            const { data: matchData } = await supabase
+              .from("matches")
+              .select("id")
+              .or(
+                `and(user1.eq.${user.id},user2.eq.${chatId}),and(user1.eq.${chatId},user2.eq.${user.id})`,
+              )
+              .maybeSingle();
+            if (matchData) {
+              setActiveMatchId(matchData.id);
+            }
+          }
+        };
+        fetchRealUser();
       }
     }
   }, [searchParams, user, activePartner]);
+
+  // Calculate streak when an active partner is set
+  useEffect(() => {
+    if (!user || !activePartner) return;
+    calculateStreak(user.id, activePartner.id, activeMatchId || undefined).then(
+      setStreak,
+    );
+  }, [
+    user,
+    activePartner,
+    activeMatchId,
+    localMessages.length,
+    dbMessages.length,
+  ]);
 
   // Fetch DB conversations
   useEffect(() => {
@@ -670,6 +724,19 @@ const Messages = () => {
   const sendMessage = useCallback(async () => {
     if (!newMsg.trim() || !user) return;
     const content = newMsg.trim();
+
+    // Check banned words
+    const banned = containsBannedWord(content);
+    if (banned) {
+      toast({
+        title: "⚠️ Nội dung không phù hợp",
+        description:
+          "Tin nhắn chứa từ ngữ không được phép. Vui lòng chỉnh sửa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setNewMsg("");
 
     if (isMockChat && activePartner) {
@@ -705,16 +772,69 @@ const Messages = () => {
       setLocalMessages(withAi);
       saveLocalChat(user.id, activePartner.id, withAi);
       setAiTyping(false);
-    } else if (activeMatchId) {
-      // DB message
-      await supabase.from("messages").insert({
-        match_id: activeMatchId,
+    } else if (activePartner) {
+      // DB message — need a match_id
+      let matchId = activeMatchId;
+
+      // If no match exists yet, create one
+      if (!matchId) {
+        const { data: existingMatch } = await supabase
+          .from("matches")
+          .select("id")
+          .or(
+            `and(user1.eq.${user.id},user2.eq.${activePartner.id}),and(user1.eq.${activePartner.id},user2.eq.${user.id})`,
+          )
+          .maybeSingle();
+
+        if (existingMatch) {
+          matchId = existingMatch.id;
+        } else {
+          // Create new match
+          const { data: newMatch, error: matchErr } = await supabase
+            .from("matches")
+            .insert({ user1: user.id, user2: activePartner.id })
+            .select("id")
+            .single();
+          if (matchErr || !newMatch) {
+            toast({
+              title: "❌ Không thể gửi tin nhắn",
+              description:
+                matchErr?.message || "Không thể tạo cuộc trò chuyện.",
+              variant: "destructive",
+            });
+            setNewMsg(content); // Restore the message
+            return;
+          }
+          matchId = newMatch.id;
+        }
+        setActiveMatchId(matchId);
+      }
+
+      // Send the message
+      const { error: msgErr } = await supabase.from("messages").insert({
+        match_id: matchId,
         sender_id: user.id,
         content,
         type: "text",
       });
+      if (msgErr) {
+        toast({
+          title: "❌ Lỗi gửi tin nhắn",
+          description: msgErr.message,
+          variant: "destructive",
+        });
+        setNewMsg(content); // Restore the message
+      }
     }
-  }, [newMsg, user, isMockChat, activePartner, localMessages, activeMatchId]);
+  }, [
+    newMsg,
+    user,
+    isMockChat,
+    activePartner,
+    localMessages,
+    activeMatchId,
+    toast,
+  ]);
 
   const fmtTime = (ts: string) => {
     const d = new Date(ts);
@@ -748,6 +868,40 @@ const Messages = () => {
           type: m.type || "text",
           seen: m.seen,
         }));
+
+    // Group messages by date for TikTok-style separators
+    const getDateLabel = (dateStr: string): string => {
+      const d = new Date(dateStr);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.floor(
+        (today.getTime() - msgDate.getTime()) / 86400000,
+      );
+      if (diffDays === 0) return "Hôm nay";
+      if (diffDays === 1) return "Hôm qua";
+      return d.toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    };
+
+    // Build messages with date separators
+    const messagesWithDates: {
+      type: "date" | "msg";
+      label?: string;
+      msg?: (typeof allMessages)[0];
+    }[] = [];
+    let lastDateLabel = "";
+    for (const msg of allMessages) {
+      const dateLabel = getDateLabel(msg.timestamp);
+      if (dateLabel !== lastDateLabel) {
+        messagesWithDates.push({ type: "date", label: dateLabel });
+        lastDateLabel = dateLabel;
+      }
+      messagesWithDates.push({ type: "msg", msg });
+    }
 
     return (
       <div className="flex flex-col h-[calc(100vh-140px)] animate-fade-in bg-background">
@@ -790,6 +944,16 @@ const Messages = () => {
               {activePartner.is_verified && (
                 <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
               )}
+              {streak.active && (
+                <span className="inline-flex items-center gap-0.5 text-xs font-black text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-full animate-pulse">
+                  {streak.label}
+                </span>
+              )}
+              {!streak.active && streak.days >= 1 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full">
+                  {streak.label}
+                </span>
+              )}
             </div>
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
               {activePartner.is_online
@@ -797,6 +961,7 @@ const Messages = () => {
                 : isMockChat
                   ? "AI Chat"
                   : "Ngoại tuyến"}
+              {streak.expiring && " • ⏳ Chuỗi sắp hết hạn!"}
             </p>
           </div>
 
@@ -837,80 +1002,95 @@ const Messages = () => {
           )}
 
           <AnimatePresence initial={false}>
-            {allMessages.map((msg) => (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                key={msg.id}
-                className="group relative"
-              >
-                <div
-                  className={`flex ${msg.isMe ? "justify-end" : "justify-start"} items-end gap-2`}
-                >
-                  {!msg.isMe && (
-                    <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
-                      <img
-                        src={partnerAvatar}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-
-                  {msg.isMe && (
-                    <button
-                      onClick={() => deleteMessage(msg.id, !isMockChat)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-500 hover:bg-red-50 rounded-full mb-1"
-                      title="Xóa tin nhắn"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-
+            {messagesWithDates.map((item, idx) => {
+              if (item.type === "date") {
+                return (
                   <div
-                    className={`relative max-w-[75%] px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
-                      msg.isMe
-                        ? "gradient-hot text-white rounded-br-md"
-                        : "bg-muted/50 backdrop-blur-sm rounded-bl-md border border-border/5"
-                    } ${msg.type === "image" ? "p-1.5" : ""}`}
+                    key={`date-${idx}`}
+                    className="flex items-center justify-center my-4"
                   >
-                    {msg.type === "image" ? (
-                      <img
-                        src={msg.content}
-                        alt="Chat image"
-                        className="rounded-xl w-full max-w-[200px] object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            "https://via.placeholder.com/200?text=Lỗi+tải+ảnh";
-                        }}
-                      />
-                    ) : (
-                      <p className="whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
+                    <span className="text-[11px] font-bold text-muted-foreground/60 bg-muted/40 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-sm">
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              }
+              const msg = item.msg!;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  key={msg.id}
+                  className="group relative"
+                >
+                  <div
+                    className={`flex ${msg.isMe ? "justify-end" : "justify-start"} items-end gap-2`}
+                  >
+                    {!msg.isMe && (
+                      <div className="w-7 h-7 rounded-full overflow-hidden shadow-sm shrink-0 mb-1">
+                        <img
+                          src={partnerAvatar}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                     )}
-                    <div
-                      className={`flex items-center gap-1.5 mt-1.5 select-none ${msg.isMe ? "justify-end" : ""}`}
-                    >
-                      <span
-                        className={`text-[9px] font-medium tracking-tighter ${msg.isMe ? "text-white/70" : "text-muted-foreground/70"}`}
+
+                    {msg.isMe && (
+                      <button
+                        onClick={() => deleteMessage(msg.id, !isMockChat)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-500 hover:bg-red-50 rounded-full mb-1"
+                        title="Xóa tin nhắn"
                       >
-                        {fmtTime(msg.timestamp)}
-                      </span>
-                      {msg.isMe && (
-                        <div className="flex">
-                          {msg.seen ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
-                          ) : (
-                            <Check className="w-3.5 h-3.5 text-white/50" />
-                          )}
-                        </div>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    <div
+                      className={`relative max-w-[75%] px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
+                        msg.isMe
+                          ? "gradient-hot text-white rounded-br-md"
+                          : "bg-muted/50 backdrop-blur-sm rounded-bl-md border border-border/5"
+                      } ${msg.type === "image" ? "p-1.5" : ""}`}
+                    >
+                      {msg.type === "image" ? (
+                        <img
+                          src={msg.content}
+                          alt="Chat image"
+                          className="rounded-xl w-full max-w-[200px] object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://via.placeholder.com/200?text=Lỗi+tải+ảnh";
+                          }}
+                        />
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words">
+                          {msg.content}
+                        </p>
                       )}
+                      <div
+                        className={`flex items-center gap-1.5 mt-1.5 select-none ${msg.isMe ? "justify-end" : ""}`}
+                      >
+                        <span
+                          className={`text-[9px] font-medium tracking-tighter ${msg.isMe ? "text-white/70" : "text-muted-foreground/70"}`}
+                        >
+                          {fmtTime(msg.timestamp)}
+                        </span>
+                        {msg.isMe && (
+                          <div className="flex">
+                            {msg.seen ? (
+                              <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5 text-white/50" />
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
 
           {/* AI typing indicator */}
@@ -1120,6 +1300,16 @@ const Messages = () => {
                       {convo.user.is_verified && (
                         <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
                       )}
+                      {(() => {
+                        const s = conversationStreaks.get(convo.user.id);
+                        if (s?.active)
+                          return (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
+                              {s.label}
+                            </span>
+                          );
+                        return null;
+                      })()}
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       {fmtTime(convo.lastMessage.timestamp)}
@@ -1229,6 +1419,16 @@ const Messages = () => {
                         {convo.user.is_verified && (
                           <Verified className="w-3.5 h-3.5 text-blue-500 fill-white" />
                         )}
+                        {(() => {
+                          const s = conversationStreaks.get(convo.user.id);
+                          if (s?.active)
+                            return (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
+                                {s.label}
+                              </span>
+                            );
+                          return null;
+                        })()}
                       </div>
                       {convo.lastMessage && (
                         <span

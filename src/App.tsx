@@ -12,6 +12,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Swipe from "./pages/Swipe";
 import Explore from "./pages/Explore";
 import Matches from "./pages/Matches";
@@ -78,6 +79,7 @@ const AppRoutes = () => (
       }
     />
     <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
 
     {/* Main app (with layout) */}
     <Route
