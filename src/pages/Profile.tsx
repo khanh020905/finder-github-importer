@@ -8,7 +8,6 @@ import {
   Heart,
   Briefcase,
   User,
-  Shield,
   Verified,
   Camera,
   Settings,
@@ -455,11 +454,6 @@ const Profile = () => {
             </button>
 
             {[
-              {
-                icon: Shield,
-                label: "Quyền riêng tư",
-                color: "text-superblue-500",
-              },
               { icon: Bell, label: "Thông báo", color: "text-red-500" },
               {
                 icon: CreditCard,
