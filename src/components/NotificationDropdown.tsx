@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Heart, MessageCircle, X, Clock, Verified } from "lucide-react";
+import { Bell, Heart, MessageCircle, X, Clock, Verified, UserPlus } from "lucide-react";
 import { useAuth, Profile } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface NotificationItem {
   id: string;
-  type: "match" | "message";
+  type: "match" | "message" | "connection_request";
   userId: string;
   userName: string;
   userAvatar: string;
@@ -24,47 +24,58 @@ export const NotificationDropdown = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch initial notifications (recent matches + unread messages)
+  // Fetch initial notifications (connection requests + matches + unread messages)
   useEffect(() => {
     if (!user) return;
 
     const fetchNotifications = async () => {
       const items: NotificationItem[] = [];
 
-      // Recent matches
-      const { data: matches } = await supabase
-        .from("matches")
+      // Incoming connection requests (likes TO current user)
+      const { data: incomingLikes } = await supabase
+        .from("likes")
         .select("*")
-        .or(`user1.eq.${user.id},user2.eq.${user.id}`)
+        .eq("to_user", user.id)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(15);
 
-      if (matches) {
-        const otherIds = matches.map((m) =>
-          m.user1 === user.id ? m.user2 : m.user1,
+      if (incomingLikes) {
+        // Check which of these are already matched (mutual)
+        const { data: matches } = await supabase
+          .from("matches")
+          .select("user1, user2")
+          .or(`user1.eq.${user.id},user2.eq.${user.id}`);
+        const matchedIds = new Set(
+          (matches || []).map((m: any) =>
+            m.user1 === user.id ? m.user2 : m.user1
+          )
         );
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, name, avatar_url, is_verified")
-          .in("id", otherIds);
-        const pMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-        for (const m of matches) {
-          const otherId = m.user1 === user.id ? m.user2 : m.user1;
-          const p = pMap.get(otherId);
-          if (!p) continue;
-          items.push({
-            id: `match-${m.id}`,
-            type: "match",
-            userId: otherId,
-            userName: p.name || "Người dùng",
-            userAvatar:
-              p.avatar_url ||
-              `https://api.dicebear.com/7.x/lorelei/svg?seed=${otherId}&backgroundColor=ffd5dc`,
-            isVerified: p.is_verified,
-            timestamp: m.created_at,
-            read: false,
-          });
+        const likerIds = incomingLikes.map((l: any) => l.from_user);
+        if (likerIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, name, avatar_url, is_verified")
+            .in("id", likerIds);
+          const pMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+          for (const like of incomingLikes) {
+            const p = pMap.get(like.from_user);
+            if (!p) continue;
+            const isMutual = matchedIds.has(like.from_user);
+            items.push({
+              id: isMutual ? `match-like-${like.id}` : `like-${like.id}`,
+              type: isMutual ? "match" : "connection_request",
+              userId: like.from_user,
+              userName: p.name || "Người dùng",
+              userAvatar:
+                p.avatar_url ||
+                `https://api.dicebear.com/7.x/lorelei/svg?seed=${like.from_user}&backgroundColor=ffd5dc`,
+              isVerified: p.is_verified,
+              timestamp: like.created_at,
+              read: false,
+            });
+          }
         }
       }
 
@@ -116,7 +127,48 @@ export const NotificationDropdown = () => {
 
     fetchNotifications();
 
-    // Realtime listeners
+    // Realtime: new likes (connection requests)
+    const likeChannel = supabase
+      .channel("notif_likes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "likes",
+          filter: `to_user=eq.${user.id}`,
+        },
+        async (payload) => {
+          const like = payload.new as any;
+          if (like.from_user === user.id) return;
+
+          const { data: p } = await supabase
+            .from("profiles")
+            .select("id, name, avatar_url, is_verified")
+            .eq("id", like.from_user)
+            .single();
+
+          if (p) {
+            const item: NotificationItem = {
+              id: `like-${like.id}`,
+              type: "connection_request",
+              userId: like.from_user,
+              userName: p.name || "Người dùng",
+              userAvatar:
+                p.avatar_url ||
+                `https://api.dicebear.com/7.x/lorelei/svg?seed=${like.from_user}&backgroundColor=ffd5dc`,
+              isVerified: p.is_verified,
+              timestamp: like.created_at,
+              read: false,
+            };
+            setNotifications((prev) => [item, ...prev].slice(0, 20));
+            setUnreadCount((prev) => prev + 1);
+          }
+        },
+      )
+      .subscribe();
+
+    // Realtime: new matches
     const matchChannel = supabase
       .channel("notif_matches")
       .on(
@@ -142,25 +194,39 @@ export const NotificationDropdown = () => {
             .single();
 
           if (p) {
-            const item: NotificationItem = {
-              id: `match-${m.id}`,
-              type: "match",
-              userId: otherId,
-              userName: p.name || "Người dùng",
-              userAvatar:
-                p.avatar_url ||
-                `https://api.dicebear.com/7.x/lorelei/svg?seed=${otherId}&backgroundColor=ffd5dc`,
-              isVerified: p.is_verified,
-              timestamp: m.created_at,
-              read: false,
-            };
-            setNotifications((prev) => [item, ...prev].slice(0, 20));
+            // Update existing connection_request to match type
+            setNotifications((prev) => {
+              const updated = prev.map((n) =>
+                n.userId === otherId && n.type === "connection_request"
+                  ? { ...n, type: "match" as const, id: `match-${m.id}` }
+                  : n
+              );
+              // If no existing request found, add new match notification
+              const hasExisting = prev.some((n) => n.userId === otherId);
+              if (!hasExisting) {
+                const item: NotificationItem = {
+                  id: `match-${m.id}`,
+                  type: "match",
+                  userId: otherId,
+                  userName: p.name || "Người dùng",
+                  userAvatar:
+                    p.avatar_url ||
+                    `https://api.dicebear.com/7.x/lorelei/svg?seed=${otherId}&backgroundColor=ffd5dc`,
+                  isVerified: p.is_verified,
+                  timestamp: m.created_at,
+                  read: false,
+                };
+                return [item, ...updated].slice(0, 20);
+              }
+              return updated;
+            });
             setUnreadCount((prev) => prev + 1);
           }
         },
       )
       .subscribe();
 
+    // Realtime: new messages
     const msgChannel = supabase
       .channel("notif_messages")
       .on(
@@ -202,6 +268,7 @@ export const NotificationDropdown = () => {
       .subscribe();
 
     return () => {
+      supabase.removeChannel(likeChannel);
       supabase.removeChannel(matchChannel);
       supabase.removeChannel(msgChannel);
     };
@@ -214,7 +281,10 @@ export const NotificationDropdown = () => {
 
   const handleClick = (item: NotificationItem) => {
     setOpen(false);
-    if (item.type === "match") {
+    if (item.type === "connection_request") {
+      // Navigate to profile so user can connect back
+      navigate(`/user-profile?id=${item.userId}`);
+    } else if (item.type === "match") {
       navigate(`/messages?chat=${item.userId}`);
     } else {
       navigate(`/messages?chat=${item.userId}`);
@@ -240,9 +310,7 @@ export const NotificationDropdown = () => {
       >
         <Bell className="w-5 h-5 text-muted-foreground" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[9px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shadow-sm animate-bounce">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background shadow-sm" />
         )}
       </button>
 
@@ -318,8 +386,10 @@ export const NotificationDropdown = () => {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           {item.type === "match"
-                            ? "🎉 Đã tương hợp với bạn!"
-                            : `💬 ${item.message || "Gửi tin nhắn"}`}
+                            ? "🤝 Đã kết nối! Vị trí đã được chia sẻ"
+                            : item.type === "connection_request"
+                              ? "🤝 muốn kết nối với bạn"
+                              : `💬 ${item.message || "Gửi tin nhắn"}`}
                         </p>
                         <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1 mt-1">
                           <Clock className="w-3 h-3" />
@@ -329,6 +399,8 @@ export const NotificationDropdown = () => {
                       <div className="shrink-0 mt-1">
                         {item.type === "match" ? (
                           <Heart className="w-4 h-4 text-primary fill-primary" />
+                        ) : item.type === "connection_request" ? (
+                          <UserPlus className="w-4 h-4 text-green-500" />
                         ) : (
                           <MessageCircle className="w-4 h-4 text-muted-foreground" />
                         )}

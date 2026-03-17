@@ -21,6 +21,7 @@ import Profile from "./pages/Profile";
 import Events from "./pages/Events";
 import EventDetail from "./pages/EventDetail";
 import StudyGroups from "./pages/StudyGroups";
+import StudyGroupDetail from "./pages/StudyGroupDetail";
 import NotFound from "./pages/NotFound";
 import UserProfile from "./pages/UserProfile";
 
@@ -47,8 +48,16 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   if (user) {
-    // If user has no name set, go to onboarding
-    if (!profile?.name) return <Navigate to="/onboarding" replace />;
+    // Profile is still loading asynchronously — wait for it
+    if (!profile)
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      );
+    // Profile loaded but no name — needs onboarding
+    if (!profile.name || !profile.name.trim()) return <Navigate to="/onboarding" replace />;
+    // Profile complete — go to explore
     return <Navigate to="/explore" replace />;
   }
   return <>{children}</>;
@@ -158,6 +167,16 @@ const AppRoutes = () => (
         <ProtectedRoute>
           <AppLayout>
             <StudyGroups />
+          </AppLayout>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/study-groups/:id"
+      element={
+        <ProtectedRoute>
+          <AppLayout>
+            <StudyGroupDetail />
           </AppLayout>
         </ProtectedRoute>
       }

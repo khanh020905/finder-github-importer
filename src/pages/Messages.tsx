@@ -592,6 +592,21 @@ const Messages = () => {
           });
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `match_id=eq.${activeMatchId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setDbMessages((prev) => prev.filter((m) => m.id !== deletedId));
+          }
+        },
+      )
       .subscribe();
 
     return () => {
@@ -606,15 +621,29 @@ const Messages = () => {
 
   // Delete message
   const deleteMessage = async (msgId: string, isDb: boolean) => {
-    if (isDb) {
-      await supabase.from("messages").delete().eq("id", msgId);
+    if (isDb && user) {
+      // Try delete from Supabase DB
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("id", msgId);
+
+      if (error) {
+        console.error("DB delete failed:", error);
+        // Try with sender_id constraint for RLS
+        await supabase
+          .from("messages")
+          .delete()
+          .eq("id", msgId)
+          .eq("sender_id", user.id);
+      }
       setDbMessages((prev) => prev.filter((m) => m.id !== msgId));
-    } else {
-      const updated = localMessages.filter((m) => m.id !== msgId);
-      setLocalMessages(updated);
-      if (user && activePartner)
-        saveLocalChat(user.id, activePartner.id, updated);
     }
+    // Always also clean from local storage
+    const updated = localMessages.filter((m) => m.id !== msgId);
+    setLocalMessages(updated);
+    if (user && activePartner)
+      saveLocalChat(user.id, activePartner.id, updated);
   };
 
   // Upload image

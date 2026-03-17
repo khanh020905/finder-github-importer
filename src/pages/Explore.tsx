@@ -381,12 +381,12 @@ const interestTags = [
 // ========== MAP COMPONENT (plain Leaflet) ==========
 function LeafletMap({
   center,
-  users,
+  connectedUsers,
   onLocate,
   onMapClick,
 }: {
   center: [number, number];
-  users: (Profile & { distance?: number })[];
+  connectedUsers: (Profile & { distance?: number })[];
   onLocate: () => void;
   onMapClick?: (lat: number, lng: number) => void;
 }) {
@@ -449,7 +449,7 @@ function LeafletMap({
     // We'll handle all markers in the users effect below
   }, [center]);
 
-  // Update user markers
+  // Update user markers — only show connected (matched) users
   useEffect(() => {
     if (!mapRef.current || !markersRef.current) return;
     markersRef.current.clearLayers();
@@ -470,8 +470,8 @@ function LeafletMap({
       )
       .addTo(markersRef.current);
 
-    // User markers
-    users.forEach((u) => {
+    // Only show markers for connected (matched) users
+    connectedUsers.forEach((u) => {
       if (!u.lat || !u.lng) return;
 
       const icon = L.divIcon({
@@ -481,6 +481,7 @@ function LeafletMap({
             <img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover;background:#fde2e4;" />
           </div>
           ${u.is_online ? '<div style="position:absolute;bottom:1px;right:1px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff;"></div>' : ""}
+          <div style="position:absolute;top:-4px;left:-4px;background:#22c55e;color:#fff;font-size:8px;font-weight:900;padding:1px 5px;border-radius:999px;border:1.5px solid #fff;">✓</div>
         </div>`,
         iconSize: [44, 44],
         iconAnchor: [22, 44],
@@ -512,10 +513,11 @@ function LeafletMap({
               <div style="font-size:11px;color:#888;">📍 ${u.city || "Không rõ"} ${distText}</div>
             </div>
           </div>
+          <div style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;margin-bottom:8px;">🤝 Đã kết nối</div>
           ${u.bio ? `<div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.4;">${u.bio}</div>` : ""}
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">${tags}</div>
           <div style="display:flex;gap:6px;">
-            <a href="/user-profile?id=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:linear-gradient(135deg,#E8311A,#ff6b4a);color:#fff;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">❤️ Xem hồ sơ</a>
+            <a href="/user-profile?id=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:linear-gradient(135deg,#E8311A,#ff6b4a);color:#fff;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">👤 Xem hồ sơ</a>
             <a href="/messages?chat=${u.id}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;padding:8px 0;border-radius:12px;text-decoration:none;">💬 Nhắn tin</a>
           </div>
         </div>
@@ -525,7 +527,7 @@ function LeafletMap({
         .bindPopup(popup)
         .addTo(markersRef.current!);
     });
-  }, [users, center]);
+  }, [connectedUsers, center]);
 
   return (
     <div
@@ -566,6 +568,7 @@ const Explore = () => {
   const [locationJustGranted, setLocationJustGranted] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [matchedUserIds, setMatchedUserIds] = useState<Set<string>>(new Set());
   const pageTopRef = useRef<HTMLDivElement>(null);
 
   // Scroll to top of the entire page smoothly
@@ -714,6 +717,50 @@ const Explore = () => {
     fetchUsers();
   }, [user, filterGender]);
 
+  // Fetch matched (connected) user IDs
+  useEffect(() => {
+    if (!user) return;
+    const fetchMatches = async () => {
+      try {
+        const { data: matches } = await supabase
+          .from("matches")
+          .select("user1, user2")
+          .or(`user1.eq.${user.id},user2.eq.${user.id}`);
+        if (matches) {
+          const ids = new Set(
+            matches.map((m: any) =>
+              m.user1 === user.id ? m.user2 : m.user1
+            )
+          );
+          setMatchedUserIds(ids);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch matches:", e);
+      }
+    };
+    fetchMatches();
+
+    // Listen for new matches in realtime
+    const channel = supabase
+      .channel("explore_matches")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "matches" },
+        (payload) => {
+          const m = payload.new as any;
+          if (m.user1 === user.id || m.user2 === user.id) {
+            const otherId = m.user1 === user.id ? m.user2 : m.user1;
+            setMatchedUserIds((prev) => new Set([...prev, otherId]));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   // Merge DB + mock, calc distance, filter
   const allUsers = [...dbUsers, ...mockUsers]
     .filter((u) => u.id !== user?.id)
@@ -746,6 +793,9 @@ const Explore = () => {
       return true;
     })
     .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
+
+  // Only pass connected (matched) users to the map
+  const connectedUsers = allUsers.filter((u) => matchedUserIds.has(u.id));
 
   const toggleTag = (tag: string) => {
     setFilterTags((prev) =>
@@ -806,7 +856,7 @@ const Explore = () => {
         >
           <LeafletMap
             center={[myLat, myLng]}
-            users={allUsers}
+            connectedUsers={connectedUsers}
             onLocate={requestLocation}
             onMapClick={(lat, lng) => {
               console.log("📍 Manual location set:", lat, lng);

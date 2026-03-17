@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import {
   Heart,
   MessageCircle,
-  Video,
   Users,
   MapPin,
   Star,
@@ -63,54 +63,15 @@ const features = [
     bg: "bg-red-50",
   },
   {
-    icon: Video,
-    title: "Video Call",
-    desc: "Trò chuyện video trực tiếp trước khi gặp mặt. An toàn và tiện lợi hơn bao giờ hết.",
-    color: "from-pink-500 to-rose-400",
-    bg: "bg-pink-50",
-  },
-  {
     icon: MessageCircle,
     title: "Chat",
-    desc: "Nhắn tin, gửi ảnh, voice message và chia sẻ Date Ideas đặc biệt cùng nhau.",
+    desc: "Nhắn tin, gửi ảnh và chia sẻ Date Ideas đặc biệt cùng nhau.",
     color: "from-orange-500 to-amber-400",
     bg: "bg-orange-50",
   },
 ];
 
-const stats = [
-  { value: 24, suffix: "/7", label: "Hỗ trợ liên tục" },
-  { value: 10, suffix: "M+", label: "Người dùng" },
-  { value: 99, suffix: "%", label: "Tỉ lệ hài lòng" },
-  { value: 50, suffix: "K+", label: "Cặp đôi thành công" },
-];
 
-const testimonials = [
-  {
-    name: "Minh Anh",
-    age: 22,
-    avatar: "/assets/images/profile-girl-1.png",
-    text: "Mình đã tìm được người ấy chỉ sau 2 tuần sử dụng. Tính năng matching rất chính xác!",
-    stars: 5,
-    location: "TP. Hồ Chí Minh",
-  },
-  {
-    name: "Đức Huy",
-    age: 24,
-    avatar: "/assets/images/profile-guy-1.png",
-    text: "App rất dễ dùng, giao diện đẹp. Đặc biệt tính năng Date Ideas giúp mình không phải lo nghĩ chỗ hẹn.",
-    stars: 5,
-    location: "Hà Nội",
-  },
-  {
-    name: "Thảo Vy",
-    age: 21,
-    avatar: "/assets/images/profile-girl-2.png",
-    text: "Photo Verified rất hay, mình thấy an tâm hơn nhiều so với các app khác. Highly recommend!",
-    stars: 5,
-    location: "Đà Nẵng",
-  },
-];
 
 const howItWorks = [
   {
@@ -145,8 +106,33 @@ const Landing = () => {
   const { user, profile } = useAuth();
   const [mobileMenu, setMobileMenu] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [weeklyUsers, setWeeklyUsers] = useState(0);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      // Get total users
+      const { count: total } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true });
+      
+      if (total !== null) setTotalUsers(total);
+
+      // Get weekly active users (last 7 days)
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      
+      const { count: weekly } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("last_active", oneWeekAgo.toISOString());
+        
+      if (weekly !== null) setWeeklyUsers(weekly);
+    };
+
+    fetchStats();
+  }, []);
 
   const avatarUrl =
     profile?.avatar_url ||
@@ -349,7 +335,7 @@ const Landing = () => {
       {/* ══════════ HERO SECTION ══════════ */}
       <section
         id="home"
-        className="relative pt-40 pb-20 md:pt-48 md:pb-32 overflow-hidden"
+        className="relative min-h-screen flex flex-col justify-center pt-20 pb-12 overflow-hidden"
       >
         {/* Background decoration */}
         <div className="absolute inset-0 gradient-hero opacity-70" />
@@ -462,19 +448,29 @@ const Landing = () => {
                 </div>
               </div>
 
-              {/* Stats row */}
-              <div className="flex items-center gap-6 pt-4">
-                {stats.slice(0, 3).map((s, i) => (
-                  <div key={i} className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      <Counter end={s.value} suffix={s.suffix} />
-                    </p>
-                    <p className="text-[11px] text-muted-foreground font-medium">
-                      {s.label}
-                    </p>
-                  </div>
-                ))}
+              {/* Dynamic Stats row */}
+              <div className="flex items-center gap-8 pt-6 border-t border-border/50">
+                <div className="text-left animate-fade-up" style={{ animationDelay: "0.2s" }}>
+                  <p className="text-3xl font-bold text-foreground flex items-center gap-1">
+                    <Counter end={totalUsers} />+
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mt-1">
+                    Tổng Người Dùng
+                  </p>
+                </div>
+                
+                <div className="w-px h-12 bg-border/50"></div>
+
+                <div className="text-left animate-fade-up" style={{ animationDelay: "0.3s" }}>
+                  <p className="text-3xl font-bold text-gradient-flame flex items-center gap-1">
+                    <Counter end={weeklyUsers} />+
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mt-1">
+                    Truy Cập Tuần
+                  </p>
+                </div>
               </div>
+
             </div>
 
             {/* Right - Hero visual */}
@@ -579,18 +575,18 @@ const Landing = () => {
               </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
-              We are a{" "}
-              <span className="font-serif-display italic">Dynamic</span>
+              We{" "}
+              <span className="font-serif-display italic">communicate</span>
               <br />
-              <span className="text-gradient-romantic">Lover</span>{" "}
-              Communication
+              <span className="text-gradient-romantic">dynamically</span>{" "}
+              with each other.
             </h2>
             <p className="text-muted-foreground">
               Tất cả những gì bạn cần để tìm kiếm và kết nối với người ấy
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
             {features.map((f, i) => (
               <div
                 key={f.title}
@@ -623,28 +619,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ══════════ STATS SECTION ══════════ */}
-      <section className="py-16 md:py-24 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-romantic opacity-[0.06]" />
-        <div className="relative z-10 max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((s, i) => (
-              <div
-                key={i}
-                className="text-center animate-fade-up"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <p className="text-4xl md:text-5xl font-bold text-gradient-flame mb-2">
-                  <Counter end={s.value} suffix={s.suffix} />
-                </p>
-                <p className="text-sm text-muted-foreground font-medium">
-                  {s.label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* ══════════ HOW IT WORKS ══════════ */}
       <section id="how-it-works" className="py-20 md:py-32 relative">
@@ -761,80 +736,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ══════════ TESTIMONIALS ══════════ */}
-      <section
-        id="testimonials"
-        className="py-20 md:py-32 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 gradient-hero opacity-50" />
-        <div className="relative z-10 max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16 animate-fade-up">
-            <div className="inline-flex items-center gap-2 bg-primary/8 rounded-full px-4 py-1.5 mb-6">
-              <Star className="w-4 h-4 text-primary fill-primary" />
-              <span className="text-xs font-semibold text-primary">
-                Đánh giá từ người dùng
-              </span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              What Our <br />
-              <span className="font-serif-display italic text-gradient-flame">
-                Customer's
-              </span>{" "}
-              Say
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((t, i) => (
-              <div
-                key={t.name}
-                className={`bg-card rounded-3xl p-8 shadow-card hover:shadow-elevated transition-all duration-500 border border-border/30 animate-fade-up ${
-                  i === activeTestimonial
-                    ? "ring-2 ring-primary/20 shadow-romantic"
-                    : ""
-                }`}
-                style={{ animationDelay: `${i * 150}ms` }}
-                onClick={() => setActiveTestimonial(i)}
-              >
-                {/* Stars */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(t.stars)].map((_, si) => (
-                    <Star
-                      key={si}
-                      className="w-4 h-4 text-amber-400 fill-amber-400"
-                    />
-                  ))}
-                </div>
-
-                {/* Quote */}
-                <p className="text-sm leading-relaxed text-foreground/80 mb-6 italic">
-                  "{t.text}"
-                </p>
-
-                {/* Author */}
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
-                    <img
-                      src={t.avatar}
-                      alt=""
-                      className="w-full h-full object-cover bg-primary/5"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">
-                      {t.name}, {t.age}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {t.location}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* ══════════ CTA SECTION ══════════ */}
       <section className="py-20 md:py-32 relative">
@@ -912,22 +813,30 @@ const Landing = () => {
               },
               {
                 title: "Kết nối",
-                links: ["Facebook", "Instagram", "TikTok", "Twitter"],
+                links: [
+                  { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61587141010574" },
+                ],
               },
             ].map((col) => (
               <div key={col.title}>
                 <h4 className="font-bold text-sm mb-4">{col.title}</h4>
                 <ul className="space-y-2.5">
-                  {col.links.map((link) => (
-                    <li key={link}>
-                      <a
-                        href="#"
-                        className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        {link}
-                      </a>
-                    </li>
-                  ))}
+                  {col.links.map((link) => {
+                    const label = typeof link === "string" ? link : link.label;
+                    const href = typeof link === "string" ? "#" : link.href;
+                    return (
+                      <li key={label}>
+                        <a
+                          href={href}
+                          target={href !== "#" ? "_blank" : undefined}
+                          rel={href !== "#" ? "noopener noreferrer" : undefined}
+                          className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          {label}
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

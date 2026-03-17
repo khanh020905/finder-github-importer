@@ -232,6 +232,37 @@ const Profile = () => {
     navigate("/login");
   };
 
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showGold, setShowGold] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+
+  // Notification preferences (local state)
+  const [notifMatches, setNotifMatches] = useState(true);
+  const [notifMessages, setNotifMessages] = useState(true);
+  const [notifConnections, setNotifConnections] = useState(true);
+
+  // Support form state
+  const [supportCategory, setSupportCategory] = useState("");
+  const [supportDesc, setSupportDesc] = useState("");
+  const [supportEmail, setSupportEmail] = useState(user?.email || "");
+  const [supportSending, setSupportSending] = useState(false);
+
+  const handleSupportSubmit = async () => {
+    if (!supportCategory || !supportDesc.trim()) {
+      toast({ title: t("profile.support_modal.error"), variant: "destructive" });
+      return;
+    }
+    setSupportSending(true);
+    // Simulate sending
+    await new Promise((r) => setTimeout(r, 1000));
+    toast({ title: t("profile.support_modal.success"), description: t("profile.support_modal.success_desc") });
+    setSupportCategory("");
+    setSupportDesc("");
+    setSupportSending(false);
+    setShowSupport(false);
+  };
+
   // Use profile directly, or fallback to show page immediately
   const displayProfile = profile || {
     id: user?.id || "",
@@ -304,7 +335,7 @@ const Profile = () => {
             </h2>
             {!displayProfile.name && (
               <p className="text-xs text-primary font-bold mt-1 animate-pulse">
-                ⚠️ Hãy cập nhật tên của bạn để hiển thị trên Khám phá
+                {t("profile.no_name_warning")}
               </p>
             )}
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">
@@ -314,7 +345,7 @@ const Profile = () => {
                 displayProfile.city,
               ]
                 .filter(Boolean)
-                .join(" • ") || "Chưa cập nhật thông tin"}
+                .join(" • ") || t("profile.no_info")}
             </p>
           </div>
         </div>
@@ -324,10 +355,10 @@ const Profile = () => {
       <div className="mx-1 p-5 rounded-3xl bg-card border border-border/5 shadow-soft space-y-3">
         <div className="flex justify-between items-center px-1">
           <h4 className="text-xs font-black uppercase tracking-wider">
-            Hồ sơ đã hoàn tất {completionPercent}%
+            {t("profile.completion", { percent: completionPercent })}
           </h4>
           <span className="text-[10px] font-bold text-primary animate-pulse">
-            NHẬN THÊM LƯỢT THÍCH →
+            {t("profile.get_more_likes")}
           </span>
         </div>
         <Progress
@@ -379,11 +410,14 @@ const Profile = () => {
           className="flex items-center justify-center gap-2 rounded-3xl h-14 font-bold shadow-soft bg-card border border-border/10 hover:bg-muted/80 transition-all active:scale-[0.97] text-sm"
         >
           <Edit className="w-4 h-4 text-primary" />
-          <span>CHỈNH SỬA</span>
+          <span>{t("profile.edit")}</span>
         </button>
-        <button className="flex items-center justify-center gap-2 rounded-3xl h-14 font-bold gradient-gold text-white shadow-glow border-0 hover:scale-105 active:scale-95 transition-all text-sm">
+        <button
+          onClick={() => setShowGold(true)}
+          className="flex items-center justify-center gap-2 rounded-3xl h-14 font-bold gradient-gold text-white shadow-glow border-0 hover:scale-105 active:scale-95 transition-all text-sm"
+        >
           <Zap className="w-4 h-4 fill-white" />
-          <span>CỰC PHẨM</span>
+          <span>{t("profile.premium")}</span>
         </button>
       </div>
 
@@ -391,7 +425,7 @@ const Profile = () => {
       <div className="space-y-4">
         <div className="space-y-2">
           <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
-            Tài khoản & Bảo mật
+            {t("profile.account_security")}
           </h4>
           <div className="bg-card rounded-[2rem] border border-border/5 shadow-soft overflow-hidden mx-1 divide-y divide-border/5">
             {/* i18n Language Switcher */}
@@ -402,10 +436,10 @@ const Profile = () => {
                 </div>
                 <div>
                   <h3 className="font-black text-base tracking-tight leading-none text-foreground">
-                    Ngôn ngữ / Language
+                    {t("profile.language")}
                   </h3>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1">
-                    Hiển thị giao diện
+                    {t("profile.display_language")}
                   </p>
                 </div>
               </div>
@@ -447,62 +481,77 @@ const Profile = () => {
                   )}
                 </div>
                 <span className="text-sm font-bold tracking-tight">
-                  {dark ? "Chế độ tối" : "Chế độ sáng"}
+                  {dark ? t("profile.dark_mode") : t("profile.light_mode")}
                 </span>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
             </button>
 
-            {[
-              { icon: Bell, label: "Thông báo", color: "text-red-500" },
-              {
-                icon: CreditCard,
-                label: "Quản lý gói Gold",
-                color: "text-amber-500",
-              },
-            ].map((item) => (
-              <button
-                key={item.label}
-                className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
-                    <item.icon className={`w-5 h-5 ${item.color}`} />
-                  </div>
-                  <span className="text-sm font-bold tracking-tight">
-                    {item.label}
-                  </span>
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-red-500" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </button>
-            ))}
+                <span className="text-sm font-bold tracking-tight">
+                  {t("profile.notifications")}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={() => setShowGold(true)}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
+                  <CreditCard className="w-5 h-5 text-amber-500" />
+                </div>
+                <span className="text-sm font-bold tracking-tight">
+                  {t("profile.gold_plan")}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
         </div>
 
         <div className="space-y-2">
           <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4">
-            Khác
+            {t("profile.other")}
           </h4>
           <div className="bg-card rounded-[2rem] border border-border/5 shadow-soft overflow-hidden mx-1 divide-y divide-border/5">
-            {[
-              { icon: HelpCircle, label: "Hỗ trợ & Trợ giúp" },
-              { icon: Lock, label: "Chính sách bảo mật" },
-            ].map((item) => (
-              <button
-                key={item.label}
-                className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground">
-                    <item.icon className="w-5 h-5" />
-                  </div>
-                  <span className="text-sm font-bold tracking-tight">
-                    {item.label}
-                  </span>
+            <button
+              onClick={() => setShowSupport(true)}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground">
+                  <HelpCircle className="w-5 h-5" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </button>
-            ))}
+                <span className="text-sm font-bold tracking-tight">
+                  {t("profile.support")}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </button>
+            <button
+              onClick={() => setShowPrivacy(true)}
+              className="w-full flex items-center justify-between p-4 px-6 hover:bg-muted/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-bold tracking-tight">
+                  {t("profile.privacy_policy")}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </button>
             <button
               onClick={handleSignOut}
               className="w-full flex items-center justify-between p-4 px-6 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group text-red-500"
@@ -512,7 +561,7 @@ const Profile = () => {
                   <LogOut className="w-5 h-5" />
                 </div>
                 <span className="text-sm font-black tracking-tight uppercase">
-                  Đăng xuất
+                  {t("profile.sign_out")}
                 </span>
               </div>
               <ChevronRight className="w-4 h-4" />
@@ -688,6 +737,341 @@ const Profile = () => {
                     <Save className="w-5 h-5 mr-2" /> CẬP NHẬT HỒ SƠ{" "}
                   </>
                 )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ Notifications Modal ═══ */}
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowNotifications(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-card rounded-t-[3rem] sm:rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-2xl font-black italic font-serif-display">
+                    {t("profile.notifications_modal.title")}
+                  </h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mt-1">
+                    {t("profile.notifications_modal.subtitle")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { key: "matches", label: t("profile.notifications_modal.new_matches"), desc: t("profile.notifications_modal.new_matches_desc"), state: notifMatches, toggle: setNotifMatches },
+                  { key: "messages", label: t("profile.notifications_modal.new_messages"), desc: t("profile.notifications_modal.new_messages_desc"), state: notifMessages, toggle: setNotifMessages },
+                  { key: "connections", label: t("profile.notifications_modal.connection_requests"), desc: t("profile.notifications_modal.connection_requests_desc"), state: notifConnections, toggle: setNotifConnections },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30">
+                    <div className="flex-1 mr-4">
+                      <p className="text-sm font-bold">{item.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => item.toggle(!item.state)}
+                      className={`w-12 h-7 rounded-full transition-all relative ${item.state ? "bg-primary" : "bg-muted"}`}
+                    >
+                      <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-all ${item.state ? "left-[22px]" : "left-0.5"}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => {
+                  toast({ title: t("profile.notifications_modal.saved") });
+                  setShowNotifications(false);
+                }}
+                className="w-full h-14 rounded-3xl gradient-hot border-0 text-white font-black text-base shadow-glow"
+              >
+                <Save className="w-5 h-5 mr-2" /> {t("profile.edit_modal.save")}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ Gold Plan Modal ═══ */}
+      <AnimatePresence>
+        {showGold && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowGold(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-card rounded-t-[3rem] sm:rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-2xl font-black italic font-serif-display">
+                    {t("profile.gold_modal.title")}
+                  </h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mt-1">
+                    {t("profile.gold_modal.subtitle")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowGold(false)}
+                  className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Basic */}
+                <div className="rounded-3xl border-2 border-primary/30 bg-primary/5 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-black">{t("profile.gold_modal.basic")}</h4>
+                    <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{t("profile.gold_modal.current_plan")}</span>
+                  </div>
+                  <p className="text-2xl font-black text-primary">{t("profile.gold_modal.basic_price")}</p>
+                  <ul className="space-y-2">
+                    {(t("profile.gold_modal.basic_features", { returnObjects: true }) as string[]).map((f: string, i: number) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <span className="text-primary text-xs">✓</span>
+                        </div>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Plus */}
+                <div className="rounded-3xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 p-5 space-y-3 relative overflow-hidden">
+                  <div className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-wider bg-amber-400 text-white px-2.5 py-1 rounded-full">
+                    {t("profile.gold_modal.popular")}
+                  </div>
+                  <h4 className="text-lg font-black">{t("profile.gold_modal.plus")}</h4>
+                  <p className="text-2xl font-black text-amber-600">{t("profile.gold_modal.plus_price")}</p>
+                  <ul className="space-y-2">
+                    {(t("profile.gold_modal.plus_features", { returnObjects: true }) as string[]).map((f: string, i: number) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="w-5 h-5 rounded-full bg-amber-400/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-amber-600 text-xs">✓</span>
+                        </div>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button className="w-full h-12 rounded-2xl bg-amber-400 text-white font-bold text-sm hover:bg-amber-500 transition-all active:scale-[0.97]">
+                    {t("profile.gold_modal.coming_soon")}
+                  </button>
+                </div>
+
+                {/* Premium */}
+                <div className="rounded-3xl border-2 border-purple-400/50 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 p-5 space-y-3">
+                  <h4 className="text-lg font-black">{t("profile.gold_modal.premium")}</h4>
+                  <p className="text-2xl font-black text-purple-600">{t("profile.gold_modal.premium_price")}</p>
+                  <ul className="space-y-2">
+                    {(t("profile.gold_modal.premium_features", { returnObjects: true }) as string[]).map((f: string, i: number) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="w-5 h-5 rounded-full bg-purple-400/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-purple-600 text-xs">✓</span>
+                        </div>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-sm hover:opacity-90 transition-all active:scale-[0.97]">
+                    {t("profile.gold_modal.coming_soon")}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ Support Modal ═══ */}
+      <AnimatePresence>
+        {showSupport && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowSupport(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-card rounded-t-[3rem] sm:rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-2xl font-black italic font-serif-display">
+                    {t("profile.support_modal.title")}
+                  </h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mt-1">
+                    {t("profile.support_modal.subtitle")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSupport(false)}
+                  className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    {t("profile.support_modal.category")} *
+                  </label>
+                  <select
+                    value={supportCategory}
+                    onChange={(e) => setSupportCategory(e.target.value)}
+                    className="w-full h-14 rounded-2xl bg-muted/40 border-0 px-6 text-sm font-bold appearance-none"
+                  >
+                    <option value="">{t("profile.support_modal.select_category")}</option>
+                    <option value="bug">{t("profile.support_modal.categories.bug")}</option>
+                    <option value="account">{t("profile.support_modal.categories.account")}</option>
+                    <option value="safety">{t("profile.support_modal.categories.safety")}</option>
+                    <option value="feedback">{t("profile.support_modal.categories.feedback")}</option>
+                    <option value="other">{t("profile.support_modal.categories.other")}</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 px-1">
+                  <div className="flex justify-between items-center ml-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                      {t("profile.support_modal.description")} *
+                    </label>
+                    <span className="text-[9px] font-bold text-muted-foreground">
+                      {supportDesc.length}/500
+                    </span>
+                  </div>
+                  <textarea
+                    value={supportDesc}
+                    onChange={(e) => setSupportDesc(e.target.value.slice(0, 500))}
+                    placeholder={t("profile.support_modal.description_placeholder")}
+                    className="w-full h-32 rounded-2xl bg-muted/40 border-0 p-5 text-sm resize-none focus:ring-2 focus:ring-primary/20 focus:outline-none font-medium leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-1.5 px-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                    {t("profile.support_modal.email")}
+                  </label>
+                  <Input
+                    type="email"
+                    value={supportEmail}
+                    onChange={(e) => setSupportEmail(e.target.value)}
+                    placeholder={t("profile.support_modal.email_placeholder")}
+                    className="h-14 rounded-2xl bg-muted/40 border-0 px-6 font-bold"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSupportSubmit}
+                disabled={supportSending}
+                className="w-full h-16 rounded-3xl gradient-hot border-0 text-white font-black text-lg shadow-glow mt-4"
+              >
+                {supportSending ? (
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>{t("profile.support_modal.submit")}</>
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ Privacy Policy Modal ═══ */}
+      <AnimatePresence>
+        {showPrivacy && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowPrivacy(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-card rounded-t-[3rem] sm:rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-2xl font-black italic font-serif-display">
+                    {t("profile.privacy_modal.title")}
+                  </h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mt-1">
+                    {t("profile.privacy_modal.subtitle")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPrivacy(false)}
+                  className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-muted-foreground font-medium px-1">
+                {t("profile.privacy_modal.last_updated")}
+              </p>
+
+              <div className="space-y-5">
+                {["collection", "usage", "sharing", "security", "rights", "contact"].map((key) => (
+                  <div key={key} className="space-y-2 px-1">
+                    <h4 className="text-sm font-black">
+                      {t(`profile.privacy_modal.sections.${key}.title`)}
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {t(`profile.privacy_modal.sections.${key}.content`)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => setShowPrivacy(false)}
+                className="w-full h-14 rounded-3xl bg-muted hover:bg-muted/80 border-0 text-foreground font-black text-base"
+              >
+                <X className="w-5 h-5 mr-2" /> {t("profile.edit_modal.title") === "Edit Profile" ? "Close" : "Đóng"}
               </Button>
             </motion.div>
           </motion.div>

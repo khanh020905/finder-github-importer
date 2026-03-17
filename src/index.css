@@ -726,6 +726,12 @@
   }
 }
 
+/* ═══ Leaflet Map z-index containment ═══ */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
 /* ═══ Selection color ═══ */
 ::selection {
   background: rgba(232, 49, 26, 0.15);

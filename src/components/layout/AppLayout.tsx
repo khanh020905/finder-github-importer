@@ -110,7 +110,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
         (payload) => {
           if (payload.new.sender_id !== user.id) {
             setUnreadMessages((prev) => prev + 1);
-            if (loc.pathname !== "/messages") {
+            if (window.location.pathname !== "/messages") {
               toast({
                 title: "💬 Tin nhắn mới",
                 description: "Bạn có tin nhắn mới.",
@@ -125,7 +125,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       supabase.removeChannel(matchesChannel);
       supabase.removeChannel(messagesChannel);
     };
-  }, [user, loc.pathname, toast]);
+  }, [user]);
 
   // Reset unread count when visiting the page
   useEffect(() => {
@@ -133,8 +133,17 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       setUnreadMatches(0);
     } else if (loc.pathname === "/messages") {
       setUnreadMessages(0);
+      // Also mark all messages as seen in DB so count doesn't come back
+      if (user) {
+        supabase
+          .from("messages")
+          .update({ seen: true })
+          .eq("seen", false)
+          .neq("sender_id", user.id)
+          .then();
+      }
     }
-  }, [loc.pathname]);
+  }, [loc.pathname, user]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -256,9 +265,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                     </span>
                   )}
                   {item.to === "/messages" && unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-4 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                      {unreadMessages}
-                    </span>
+                    <span className="absolute -top-0.5 -right-2 w-2 h-2 rounded-full bg-primary" />
                   )}
                 </Link>
               );

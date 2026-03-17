@@ -106,6 +106,12 @@ CREATE POLICY "Match users can send messages" ON messages
     auth.uid() = sender_id AND
     EXISTS (SELECT 1 FROM matches WHERE id = match_id AND (user1 = auth.uid() OR user2 = auth.uid()))
   );
+CREATE POLICY "Users can delete own messages" ON messages
+  FOR DELETE USING (auth.uid() = sender_id);
+CREATE POLICY "Match users can update messages" ON messages
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM matches WHERE id = match_id AND (user1 = auth.uid() OR user2 = auth.uid()))
+  );
 
 -- ============================================
 -- Match detection trigger
@@ -142,6 +148,8 @@ CREATE TRIGGER on_like_check_match
 -- ============================================
 
 ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE likes;
+ALTER PUBLICATION supabase_realtime ADD TABLE matches;
 
 -- ============================================
 -- Storage bucket for avatars

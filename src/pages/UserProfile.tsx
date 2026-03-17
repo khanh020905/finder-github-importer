@@ -448,6 +448,7 @@ const UserProfile = () => {
   const [dbLoading, setDbLoading] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [isMatched, setIsMatched] = useState(false);
 
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -523,6 +524,17 @@ const UserProfile = () => {
       .then(({ data }) => {
         if (data) setLiked(true);
       });
+    // Also check if already matched
+    supabase
+      .from("matches")
+      .select("id")
+      .or(
+        `and(user1.eq.${user.id},user2.eq.${userId}),and(user1.eq.${userId},user2.eq.${user.id})`,
+      )
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setIsMatched(true);
+      });
   }, [user, userId]);
 
   // ========== HANDLE LIKE/UNLIKE ==========
@@ -538,9 +550,10 @@ const UserProfile = () => {
         .eq("from_user", user.id)
         .eq("to_user", userId);
       setLiked(false);
-      toast({ title: "Đã bỏ thích" });
+      setIsMatched(false);
+      toast({ title: "Đã hủy kết nối" });
     } else {
-      // Like
+      // Send connection request (Like)
       const { error } = await supabase.from("likes").insert({
         from_user: user.id,
         to_user: userId,
@@ -548,11 +561,11 @@ const UserProfile = () => {
       if (!error) {
         setLiked(true);
         toast({
-          title: "❤️ Đã thích!",
-          description: `Bạn đã thích ${profileUser?.name || "người này"}`,
+          title: "🤝 Đã gửi lời kết nối!",
+          description: `Chờ ${profileUser?.name || "người này"} chấp nhận`,
         });
 
-        // Check if match was created
+        // Check if match was created (mutual connection)
         const { data: matchData } = await supabase
           .from("matches")
           .select("id")
@@ -561,9 +574,10 @@ const UserProfile = () => {
           )
           .maybeSingle();
         if (matchData) {
+          setIsMatched(true);
           toast({
-            title: "🎉 It's a Match!",
-            description: `Bạn và ${profileUser?.name} đã tương hợp!`,
+            title: "🎉 Đã kết nối thành công!",
+            description: `Vị trí của bạn và ${profileUser?.name} đã được chia sẻ trên bản đồ!`,
           });
         }
       }
@@ -1102,13 +1116,20 @@ const UserProfile = () => {
             onClick={handleLikeToggle}
             disabled={likeLoading}
             className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all ${
-              liked
-                ? "gradient-hot text-white shadow-glow"
-                : "bg-primary/5 text-primary hover:bg-primary/10"
+              isMatched
+                ? "bg-green-500 text-white shadow-lg"
+                : liked
+                  ? "gradient-hot text-white shadow-glow"
+                  : "bg-primary/5 text-primary hover:bg-primary/10"
             } ${likeLoading ? "opacity-50" : ""}`}
           >
-            <Heart className={`w-5 h-5 ${liked ? "fill-white" : ""}`} />
-            {liked ? "Đã thích ❤️" : "❤️ Thích"}
+            {isMatched ? (
+              <>✅ Đã kết nối</>
+            ) : liked ? (
+              <>🤝 Đã gửi lời kết nối</>
+            ) : (
+              <>🤝 Kết nối</>
+            )}
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.95 }}
