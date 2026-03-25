@@ -35,7 +35,7 @@ const StudyGroups = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [groups, setGroups] = useState<StudyGroup[]>(mockGroups);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -52,18 +52,13 @@ const StudyGroups = () => {
   // Fetch groups from Supabase
   useEffect(() => {
     const fetchGroups = async () => {
-      setLoading(true);
       try {
         const { data, error } = await supabase
           .from("study_groups")
           .select("*, profiles:created_by(name, avatar_url)")
           .order("created_at", { ascending: false });
 
-        if (error) {
-          console.log("[StudyGroups] DB fetch failed, using mock data:", error.message);
-          setGroups(mockGroups);
-        } else if (data && data.length > 0) {
-          // Map DB rows to StudyGroup interface
+        if (!error && data && data.length > 0) {
           const dbGroups: StudyGroup[] = data.map((row: any) => ({
             id: row.id,
             name: row.name,
@@ -84,17 +79,11 @@ const StudyGroups = () => {
             rating: row.rating || 5.0,
             nextSession: row.next_session || new Date().toISOString(),
           }));
-          // Show DB groups first, then mock groups
           setGroups([...dbGroups, ...mockGroups]);
-        } else {
-          // No DB groups yet, show mock data
-          setGroups(mockGroups);
         }
       } catch (err) {
-        console.log("[StudyGroups] Error:", err);
-        setGroups(mockGroups);
+        console.log("[StudyGroups] DB fetch skipped:", err);
       }
-      setLoading(false);
     };
 
     fetchGroups();
@@ -111,7 +100,10 @@ const StudyGroups = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const totalMembers = groups.reduce((sum, g) => sum + g.members, 0);
+  // Fixed stats as requested
+  const statsGroups = 10;
+  const statsStudents = 105;
+  const statsSessions = 24;
 
   const handleCreateGroup = async () => {
     if (!formData.name || !formData.subject) {
@@ -318,19 +310,19 @@ const StudyGroups = () => {
       {/* Info Stats */}
       <div className="grid grid-cols-3 gap-4 mt-12 bg-card/50 backdrop-blur-md p-6 rounded-[2.5rem] border border-border/5">
         <div className="text-center space-y-1">
-          <p className="text-3xl font-black text-secondary">{groups.length * 10 + 5}+</p>
+          <p className="text-3xl font-black text-secondary">{statsGroups}+</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
             Nhóm hoạt động
           </p>
         </div>
         <div className="text-center space-y-1 border-l border-border/10">
-          <p className="text-3xl font-black text-primary">{totalMembers + 27}+</p>
+          <p className="text-3xl font-black text-primary">{statsStudents}+</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
             Sinh viên tham gia
           </p>
         </div>
         <div className="text-center space-y-1 border-l border-border/10">
-          <p className="text-3xl font-black text-amber-500">24+</p>
+          <p className="text-3xl font-black text-amber-500">{statsSessions}+</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
             Phiên học tuần này
           </p>
