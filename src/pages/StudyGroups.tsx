@@ -7,10 +7,15 @@ import {
   BookOpen,
   Search,
   GraduationCap,
-  LayoutGrid,
   ListFilter,
+  X,
+  MapPin,
+  Clock,
+  Users,
+  Calendar,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 const categories = [
   "Tất cả",
@@ -22,8 +27,19 @@ const categories = [
 ];
 
 const StudyGroups = () => {
+  const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    subject: "",
+    description: "",
+    category: "Exam Prep",
+    location: "",
+    schedule: "",
+    maxMembers: "10",
+  });
 
   const filteredGroups = mockGroups.filter((group) => {
     const matchesCategory =
@@ -31,9 +47,26 @@ const StudyGroups = () => {
     const matchesSearch =
       group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       group.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      group.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      group.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      group.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
+
+  const totalMembers = mockGroups.reduce((sum, g) => sum + g.members, 0);
+
+  const handleCreateGroup = () => {
+    if (!formData.name || !formData.subject) {
+      toast({ title: "⚠️ Thiếu thông tin", description: "Vui lòng nhập tên nhóm và môn học." });
+      return;
+    }
+    toast({
+      title: "🎓 Tạo nhóm thành công!",
+      description: `Nhóm "${formData.name}" đã được tạo.`,
+      className: "bg-secondary text-white border-none",
+    });
+    setShowCreateModal(false);
+    setFormData({ name: "", subject: "", description: "", category: "Exam Prep", location: "", schedule: "", maxMembers: "10" });
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-24">
@@ -52,6 +85,7 @@ const StudyGroups = () => {
           <motion.button
             whileHover={{ scale: 1.05, rotate: 90 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => setShowCreateModal(true)}
             className="w-12 h-12 rounded-2xl bg-secondary text-white flex items-center justify-center shadow-glow-secondary border-0"
           >
             <Plus className="w-6 h-6" />
@@ -124,6 +158,7 @@ const StudyGroups = () => {
                 </p>
               </div>
               <Button
+                onClick={() => setShowCreateModal(true)}
                 variant="secondary"
                 className="rounded-full px-8 py-6 h-auto font-black uppercase tracking-widest shadow-glow-secondary"
               >
@@ -135,20 +170,159 @@ const StudyGroups = () => {
       </div>
 
       {/* Info Stats */}
-      <div className="grid grid-cols-2 gap-4 mt-12 bg-card/50 backdrop-blur-md p-6 rounded-[2.5rem] border border-border/5">
+      <div className="grid grid-cols-3 gap-4 mt-12 bg-card/50 backdrop-blur-md p-6 rounded-[2.5rem] border border-border/5">
         <div className="text-center space-y-1">
-          <p className="text-3xl font-black text-secondary">150+</p>
+          <p className="text-3xl font-black text-secondary">{mockGroups.length * 10 + 5}+</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
             Nhóm hoạt động
           </p>
         </div>
         <div className="text-center space-y-1 border-l border-border/10">
-          <p className="text-3xl font-black text-primary">800+</p>
+          <p className="text-3xl font-black text-primary">{totalMembers + 27}+</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
             Sinh viên tham gia
           </p>
         </div>
+        <div className="text-center space-y-1 border-l border-border/10">
+          <p className="text-3xl font-black text-amber-500">24+</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+            Phiên học tuần này
+          </p>
+        </div>
       </div>
+
+      {/* Create Group Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card w-full max-w-md rounded-3xl p-6 shadow-elevated border border-border/10 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-black flex items-center gap-2">
+                  <GraduationCap className="w-6 h-6 text-secondary" />
+                  Tạo nhóm mới
+                </h2>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 block">
+                    Tên nhóm *
+                  </label>
+                  <input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="VD: Nhóm Ôn Thi Giải Tích"
+                    className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 block">
+                    Môn học *
+                  </label>
+                  <input
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    placeholder="VD: Toán Cao Cấp"
+                    className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 block">
+                    Thể loại
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                  >
+                    {categories.filter((c) => c !== "Tất cả").map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> Địa điểm
+                    </label>
+                    <input
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="VD: Thư viện tầng 2"
+                      className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Users className="w-3 h-3" /> Tối đa
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.maxMembers}
+                      onChange={(e) => setFormData({ ...formData, maxMembers: e.target.value })}
+                      placeholder="10"
+                      className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Lịch học
+                  </label>
+                  <input
+                    value={formData.schedule}
+                    onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                    placeholder="VD: Thứ 2, 4 (18:00)"
+                    className="w-full h-12 px-4 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 block">
+                    Mô tả
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Mô tả chi tiết về nhóm..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl bg-muted/50 border border-border/10 text-sm focus:ring-2 focus:ring-secondary/20 focus:outline-none font-medium resize-none"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleCreateGroup}
+                  className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest gradient-secondary text-white shadow-glow-secondary hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  Tạo nhóm ngay
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { containsBannedWord } from "@/lib/banned-words";
 import { useToast } from "@/hooks/use-toast";
 import { calculateStreak, StreakInfo } from "@/lib/streak";
+import { useCallSignaling, CallType } from "@/hooks/useCallSignaling";
+import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
+
+// Lazy load CallScreen so Agora SDK only loads when a call starts
+const CallScreen = lazy(() =>
+  import("@/components/call/CallScreen").then((m) => ({ default: m.CallScreen }))
+);
 
 // ========== AI CHAT (via Edge Function) ==========
 async function chatWithGroq(
@@ -383,10 +390,45 @@ function saveLocalChat(
 
 // ========== MAIN COMPONENT ==========
 const Messages = () => {
-  const { user } = useAuth();
+  const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // ========== CALL STATE ==========
+  const {
+    callStatus,
+    incomingCall,
+    activeCall,
+    sendCallInvite,
+    sendCallAccepted,
+    sendCallRejected,
+    sendCallEnded,
+    resetCall,
+  } = useCallSignaling(user?.id);
+  const [showCallScreen, setShowCallScreen] = useState(false);
+  const [currentCallChannel, setCurrentCallChannel] = useState<string | null>(null);
+  const [currentCallType, setCurrentCallType] = useState<CallType>("audio");
+
+  // React to call status changes (must be useEffect, not in render body)
+  useEffect(() => {
+    if (callStatus === "connected" && activeCall && !showCallScreen) {
+      console.log("[Call] Remote accepted, joining channel:", activeCall.channelName);
+      setCurrentCallChannel(activeCall.channelName);
+      setCurrentCallType(activeCall.callType);
+      setShowCallScreen(true);
+    }
+    if (callStatus === "ended" && showCallScreen) {
+      setShowCallScreen(false);
+      setCurrentCallChannel(null);
+    }
+    if (callStatus === "rejected") {
+      if (showCallScreen) {
+        setShowCallScreen(false);
+        setCurrentCallChannel(null);
+      }
+    }
+  }, [callStatus, activeCall, showCallScreen]);
 
   // DB-based conversations
   const [conversations, setConversations] = useState<
@@ -928,8 +970,78 @@ const Messages = () => {
       messagesWithDates.push({ type: "msg", msg });
     }
 
+    // ========== CALL HANDLERS ==========
+    const handleStartCall = async (type: CallType) => {
+      if (!activePartner || !user) return;
+      if (isMockChat) {
+        toast({ title: "📞 Demo", description: "Cuộc gọi không khả dụng với người dùng demo" });
+        return;
+      }
+      try {
+        const myName = myProfile?.name || "Bạn";
+        const myAvatar = myProfile?.avatar_url || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.id}&backgroundColor=ffd5dc`;
+        const callInfo = await sendCallInvite(activePartner.id, type, myName, myAvatar);
+        if (callInfo) {
+          console.log("[Call] Sending invite, channel:", callInfo.channelName);
+          setCurrentCallChannel(callInfo.channelName);
+          setCurrentCallType(type);
+          setShowCallScreen(true);
+        }
+      } catch (err) {
+        console.error("Failed to start call:", err);
+        toast({ title: "❌ Lỗi", description: "Không thể bắt đầu cuộc gọi", variant: "destructive" });
+      }
+    };
+
+    const handleAcceptIncoming = async () => {
+      const callInfo = await sendCallAccepted();
+      if (callInfo) {
+        console.log("[Call] Accepted, joining channel:", callInfo.channelName);
+        setCurrentCallChannel(callInfo.channelName);
+        setCurrentCallType(callInfo.callType);
+        setShowCallScreen(true);
+      }
+    };
+
+    const handleEndCall = async () => {
+      if (activePartner) {
+        await sendCallEnded(activePartner.id);
+      }
+      setShowCallScreen(false);
+      setCurrentCallChannel(null);
+      resetCall();
+    };
+
     return (
       <div className="flex flex-col h-[calc(100vh-140px)] animate-fade-in bg-background">
+        {/* Incoming call overlay */}
+        {incomingCall && callStatus === "ringing" && (
+          <IncomingCallOverlay
+            callInfo={incomingCall}
+            onAccept={handleAcceptIncoming}
+            onReject={sendCallRejected}
+          />
+        )}
+
+        {/* Active call screen */}
+        <AnimatePresence>
+          {showCallScreen && currentCallChannel && (
+            <Suspense fallback={
+              <div className="fixed inset-0 z-[100] bg-gray-900 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-white animate-spin" />
+              </div>
+            }>
+              <CallScreen
+                channelName={currentCallChannel}
+                callType={currentCallType}
+                partnerName={activePartner?.name || ""}
+                partnerAvatar={partnerAvatar}
+                onEndCall={handleEndCall}
+              />
+            </Suspense>
+          )}
+        </AnimatePresence>
+
         {/* Chat header */}
         <div className="flex items-center gap-3 p-4 border-b border-border/10 bg-card/50 backdrop-blur-xl sticky top-0 z-20">
           <button
@@ -991,10 +1103,16 @@ const Messages = () => {
           </div>
 
           <div className="flex items-center gap-1">
-            <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
+            <button
+              onClick={() => handleStartCall("audio")}
+              className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors hover:text-green-600"
+            >
               <Phone className="w-4 h-4" />
             </button>
-            <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
+            <button
+              onClick={() => handleStartCall("video")}
+              className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"
+            >
               <Video className="w-4 h-4" />
             </button>
             <button className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">

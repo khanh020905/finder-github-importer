@@ -61,6 +61,7 @@ const features = [
     desc: "Gặp gỡ những người phù hợp nhất dựa trên sở thích và vị trí của bạn. AI matching thông minh.",
     color: "from-red-500 to-orange-400",
     bg: "bg-red-50",
+    to: "/explore",
   },
   {
     icon: MessageCircle,
@@ -68,6 +69,7 @@ const features = [
     desc: "Nhắn tin, gửi ảnh và chia sẻ Date Ideas đặc biệt cùng nhau.",
     color: "from-orange-500 to-amber-400",
     bg: "bg-orange-50",
+    to: "/messages",
   },
 ];
 
@@ -117,7 +119,7 @@ const Landing = () => {
         .from("profiles")
         .select("*", { count: "exact", head: true });
       
-      if (total !== null) setTotalUsers(total);
+      if (total !== null) setTotalUsers(total + 10);
 
       // Get weekly active users (last 7 days)
       const oneWeekAgo = new Date();
@@ -588,9 +590,10 @@ const Landing = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
             {features.map((f, i) => (
-              <div
+              <Link
                 key={f.title}
-                className="group bg-card rounded-3xl p-8 shadow-card hover:shadow-elevated transition-all duration-500 border border-border/30 hover:border-primary/20 animate-fade-up hover:-translate-y-2"
+                to={f.to}
+                className="group bg-card rounded-3xl p-8 shadow-card hover:shadow-elevated transition-all duration-500 border border-border/30 hover:border-primary/20 animate-fade-up hover:-translate-y-2 block"
                 style={{ animationDelay: `${i * 150}ms` }}
               >
                 <div
@@ -613,7 +616,7 @@ const Landing = () => {
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   {f.desc}
                 </p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
