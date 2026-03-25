@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { mockGroups } from "@/lib/mock-data";
+import { mockGroups, type StudyGroup } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -18,9 +18,11 @@ import {
   Wifi,
   Shield,
   Send,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabase";
 
 const levelColors = {
   Beginner: "from-green-500 to-emerald-500",
@@ -61,8 +63,65 @@ const StudyGroupDetail = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"about" | "discussion" | "resources" | "reviews">("about");
   const [newMessage, setNewMessage] = useState("");
+  const [group, setGroup] = useState<StudyGroup | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const group = mockGroups.find((g) => g.id === id);
+  useEffect(() => {
+    // First check mock data
+    const mockGroup = mockGroups.find((g) => g.id === id);
+    if (mockGroup) {
+      setGroup(mockGroup);
+      setLoading(false);
+      return;
+    }
+
+    // Not in mock data — fetch from Supabase
+    const fetchGroup = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("study_groups")
+          .select("*, profiles:created_by(name, avatar_url)")
+          .eq("id", id)
+          .single();
+
+        if (!error && data) {
+          setGroup({
+            id: data.id,
+            name: data.name,
+            subject: data.subject,
+            description: data.description || "",
+            location: data.location || "",
+            schedule: data.schedule || "",
+            members: data.members || 1,
+            maxMembers: data.max_members || 10,
+            category: data.category || "Exam Prep",
+            createdBy: {
+              name: data.profiles?.name || "Ẩn danh",
+              avatar: data.profiles?.avatar_url || data.id,
+            },
+            tags: data.tags || [],
+            level: data.level || "Beginner",
+            isOnline: data.is_online || false,
+            rating: data.rating || 5.0,
+            nextSession: data.next_session || new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        console.log("[StudyGroupDetail] Fetch error:", err);
+      }
+      setLoading(false);
+    };
+
+    fetchGroup();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+      </div>
+    );
+  }
 
   if (!group) {
     return (
