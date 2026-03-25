@@ -6,7 +6,7 @@ import AgoraRTC, {
   IAgoraRTCRemoteUser,
 } from "agora-rtc-sdk-ng";
 
-const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
+const APP_ID = import.meta.env.VITE_AGORA_APP_ID || "4a2dd60a892a4f268f5dc0ab60f7c0f0";
 
 export interface AgoraState {
   localAudioTrack: IMicrophoneAudioTrack | null;
