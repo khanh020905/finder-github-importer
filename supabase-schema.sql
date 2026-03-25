@@ -161,3 +161,47 @@ ALTER PUBLICATION supabase_realtime ADD TABLE matches;
 --    - INSERT: allow authenticated users
 --    - SELECT: allow all (public)
 -- ============================================
+
+-- ============================================
+-- Study Groups
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS study_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  location TEXT DEFAULT '',
+  schedule TEXT DEFAULT '',
+  members INT DEFAULT 1,
+  max_members INT DEFAULT 10,
+  category TEXT DEFAULT 'Exam Prep',
+  level TEXT DEFAULT 'Beginner' CHECK (level IN ('Beginner', 'Intermediate', 'Advanced')),
+  is_online BOOLEAN DEFAULT false,
+  tags TEXT[] DEFAULT '{}',
+  rating FLOAT DEFAULT 5.0,
+  next_session TIMESTAMPTZ,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE study_groups ENABLE ROW LEVEL SECURITY;
+
+-- Anyone authenticated can read all groups
+CREATE POLICY "Anyone can read study groups" ON study_groups
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Authenticated users can create groups
+CREATE POLICY "Authenticated users can create groups" ON study_groups
+  FOR INSERT WITH CHECK (auth.uid() = created_by);
+
+-- Only the creator can update their group
+CREATE POLICY "Creator can update own group" ON study_groups
+  FOR UPDATE USING (auth.uid() = created_by);
+
+-- Only the creator can delete their group
+CREATE POLICY "Creator can delete own group" ON study_groups
+  FOR DELETE USING (auth.uid() = created_by);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE study_groups;
+

@@ -172,7 +172,6 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                 const isExploreActive = [
                   "/explore",
                   "/swipe",
-                  "/events",
                   "/study-groups",
                 ].includes(loc.pathname);
                 return (
@@ -221,16 +220,6 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                           }`}
                         >
                           Quẹt ghép đôi
-                        </Link>
-                        <Link
-                          to="/events"
-                          className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-primary/5 hover:text-primary ${
-                            loc.pathname === "/events"
-                              ? "text-primary bg-primary/5"
-                              : "text-foreground"
-                          }`}
-                        >
-                          Sự kiện
                         </Link>
                         <Link
                           to="/study-groups"
