@@ -205,3 +205,56 @@ CREATE POLICY "Creator can delete own group" ON study_groups
 
 ALTER PUBLICATION supabase_realtime ADD TABLE study_groups;
 
+-- ============================================
+-- Study Group Members (who joined which group)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS study_group_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES study_groups(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(group_id, user_id)
+);
+
+ALTER TABLE study_group_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read group members" ON study_group_members
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can join groups" ON study_group_members
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can leave groups" ON study_group_members
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- ============================================
+-- Study Group Messages (group chat)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS study_group_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES study_groups(id) ON DELETE CASCADE,
+  sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  content TEXT NOT NULL DEFAULT '',
+  type TEXT DEFAULT 'text' CHECK (type IN ('text', 'image', 'system')),
+  image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE study_group_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Group members can read messages" ON study_group_messages
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Group members can send messages" ON study_group_messages
+  FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "Users can delete own messages" ON study_group_messages
+  FOR DELETE USING (auth.uid() = sender_id);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE study_group_members;
+ALTER PUBLICATION supabase_realtime ADD TABLE study_group_messages;
+
+
